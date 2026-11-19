@@ -1,6 +1,6 @@
-import type { Group, GroupId, Observation, PeriodId, ProbabilityBand, Professor, Tool, ValidationRow } from "./types";
+import type { Group, GroupId, Observation, PeriodId, ProbabilityBand, Professor, Tool, ValidationRow } from "../src/lib/types";
 
-/** All records in this module are fictional. They are not institutional results. */
+/** Test data only, never part of the app: every record is fictional. The domain tests load it with setSource. */
 export const DATA_SOURCE = "Demostración con datos sintéticos";
 export const PERIODS: PeriodId[] = ["202320", "202410", "202420", "202510", "202520"];
 // Every synthetic period can be consulted; real data keeps its first semesters as history only.
@@ -11,7 +11,7 @@ export const MIN_PROFESSORS = 30;
 export const RETURN_SHARE = 1;
 // Each source keeps its own draft selection, so switching sources does not erase the other one.
 export const SELECTION_KEY = "conectate-convocatoria-v1";
-// UI texts that depend on the source; real.ts exports the same keys.
+// UI texts that depend on the source; real.ts builds the same keys from tablero.json.
 export const TEXTS = {
   badge: "Datos sintéticos",
   identity: "Identidad ficticia · Demostración",

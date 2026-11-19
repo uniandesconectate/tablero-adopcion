@@ -94,6 +94,18 @@ small { font-size: 12px; }
 .selection-button > strong { min-width: 19px; min-height: 19px; display: inline-grid; place-items: center; padding: 1px 5px; background: var(--forest); border-radius: 4px; color: white; font-size: 10px; font-weight: 500; }
 .demo-badge > span { display: none; }
 .topbar .mobile-menu { display: none; }
+
+/* Start screen: the dashboard asks for tablero.json before showing anything. */
+.start { min-height: 100vh; display: grid; place-items: center; padding: 48px 16px; }
+.start-panel { width: 100%; max-width: 620px; }
+.start .brand { margin: 0 0 44px; }
+.start .page-description { font-size: 15px; margin-bottom: 10px; }
+.drop-zone { display: grid; justify-items: center; gap: 12px; margin: 26px 0 14px; padding: 32px 20px; text-align: center; border: 1.5px dashed #9eab99; border-radius: var(--radius); background: var(--surface); color: var(--forest); transition: background .16s ease, border-color .16s ease; }
+.drop-zone[data-over] { border-color: var(--amber-dark); background: #ede8d5; }
+.drop-zone p { margin: 0; display: grid; gap: 2px; }
+.drop-zone p span { color: var(--muted); font-size: 12px; }
+.file-button:focus-within { outline: 2px solid var(--amber-dark); outline-offset: 4px; }
+.start .callout { margin-bottom: 14px; }
 .workspace { max-width: 1380px; margin: 0 auto; padding: 28px 35px 20px; }
 .global-filters { display: flex; gap: 12px 15px; flex-wrap: wrap; align-items: end; padding-bottom: 16px; margin-bottom: 22px; border-bottom: 1px solid var(--border); }
 .global-filters-label { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #5c6c53; margin: auto 3px auto 0; }
@@ -468,6 +480,8 @@ details[open] > summary.panel-header::after { content: '−'; }
   .demo-badge::before { width: 4px; height: 4px; }
   .selection-button { padding: 7px 9px; min-height: 32px; font-size: 10px; gap: 6px; }
   .selection-button svg { width: 13px; height: 13px; }
+  .change-file { padding: 7px 9px; min-height: 32px; }
+  .change-file > span { display: none; }
   .workspace { padding: 22px 18px 18px; }
   .global-filters { gap: 10px; padding-bottom: 19px; margin-bottom: 22px; }
   .global-filters-label { width: 100%; font-size: 9px; margin-bottom: 2px; }

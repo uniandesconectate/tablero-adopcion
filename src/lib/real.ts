@@ -1,8 +1,6 @@
-// shortcut: the whole file ships in the browser bundle (about 6 MB, 0.8 MB gzip); serve it from the server before any non-local deployment.
-import raw from "@datos-reales";
 import type { Group, Observation, PeriodId, ProbabilityBand, Professor, Tool, ValidationRow } from "./types";
 
-// Contract of datos/real/tablero.json, written by experimentos/02_trayectorias/03_markov_k5_experimentos/exportar_tablero.py.
+// Contract of tablero.json, the file the Conecta-TE Databricks process writes each semester.
 const CONTRACT = "tablero-adopcion/v2";
 type Flag = 0 | 1 | null;
 interface Contract {
@@ -43,10 +41,10 @@ const CONTRACTS: Record<string, string> = { catedra: "Cátedra", planta: "Planta
 const sinceStart = (text: string) => text.replace(/^(La tuvo en sus aulas en algún semestre anterior|No la ha tenido en sus aulas antes)\.$/, "$1 (desde 2020-2).");
 const aligned = (what: string, columns: unknown[][]) => { if (!columns.every(column => Array.isArray(column) && column.length === columns[0].length)) fail(`las columnas de ${what} no tienen el mismo largo.`); };
 
-/** Validates the export and builds the same exports as sintetico.ts. */
+/** Validates a tablero.json and builds the source the dashboard reads (data.ts). */
 export function buildRealSource(input: unknown) {
   const data = input as Contract;
-  if (data?.contrato !== CONTRACT) fail(`se esperaba el contrato "${CONTRACT}" y llegó ${JSON.stringify(data?.contrato)}. Vuelve a generar el archivo con experimentos/02_trayectorias/03_markov_k5_experimentos/exportar_tablero.py.`);
+  if (data?.contrato !== CONTRACT) fail(`no es un tablero.json del proceso de datos de Conecta-TE con el formato "${CONTRACT}"${typeof data?.contrato === "string" ? ` (este trae «${data.contrato}»)` : ""}. Descarga de nuevo el tablero.json del semestre desde Databricks.`);
   for (const key of ["fuente", "periodos", "pronostico", "herramientas", "grupos", "profesores", "filas", "uso", "pronosticos", "perfil_siguiente", "validacion"] as const) if (data[key] == null) fail(`falta la clave "${key}".`);
   const { fuente, periodos, pronostico, herramientas, grupos, profesores, filas, uso, pronosticos, validacion } = data;
   const { modelo, reglas } = fuente;
@@ -60,6 +58,7 @@ export function buildRealSource(input: unknown) {
   if (!Number.isInteger(reglas.minimo_profesores) || reglas.minimo_profesores < 1) fail("fuente.reglas.minimo_profesores debe ser un entero mayor que 0.");
   const returnShare = probability(fuente.vuelven_siguiente);
 
+  if (!herramientas.length) fail("no trae herramientas.");
   unique(herramientas.map(tool => tool.id), "herramientas");
   const TOOLS: Tool[] = herramientas.map(tool => {
     if (tool.evidencia !== "configuracion" && (tool.evidencia !== "uso" || typeof tool.umbral !== "number")) fail(`la herramienta ${tool.id} no trae una evidencia válida o le falta el umbral.`);
@@ -176,5 +175,3 @@ export function buildRealSource(input: unknown) {
     nextGroupProbabilities: (professorId: string, period: PeriodId): number[] | null => period === origen ? nextGroups.get(professorId) ?? null : null,
   };
 }
-
-export const { DATA_SOURCE, PERIODS, SELECTABLE_PERIODS, MIN_PROFESSORS, RETURN_SHARE, SELECTION_KEY, TEXTS, TOOLS, GROUPS, FACULTIES, PROFESSORS, OBSERVATIONS, VALIDATION_ROWS, startProbability, startReason, probabilityBand, nextGroupProbabilities } = buildRealSource(raw);

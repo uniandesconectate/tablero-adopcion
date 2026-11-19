@@ -2,13 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fixture from "./fixtures/tablero-ejemplo.json";
-import { PERIODS } from "../src/lib/data";
+import { setSource } from "../src/lib/data";
 import { classify } from "../src/lib/domain";
-import * as real from "../src/lib/real";
-import * as sintetico from "../src/lib/sintetico";
+import { buildRealSource } from "../src/lib/real";
 import type { Observation } from "../src/lib/types";
+import * as sintetico from "./sintetico";
 
-// real.ts reads the fixture here (tsconfig paths); domain.ts stays on the synthetic source.
+// `real` is the fixture as the start screen opens it; domain.ts runs on the synthetic test data.
+const real = { ...buildRealSource(fixture), buildRealSource };
+setSource(sintetico);
+const { PERIODS } = sintetico;
 const rubricas = sintetico.TOOLS.find(item => item.id === "rubricas")!;
 const [p0, p1, p2, p3, p4] = PERIODS;
 function rows(periods: string[], effective: boolean[], toolId = rubricas.id): Observation[] {
@@ -128,12 +131,12 @@ test("real bands compare the shown probability with the tool's habitual rate", (
 });
 
 test("domain rules hold on the v2 fixture (R1 to R11)", () => {
-  // domain.ts reads the active source, so tests/domain-real.ts runs in its own process with real.ts.
+  // domain.ts reads one open file at a time, so tests/domain-real.ts opens the fixture in its own process.
   const { NODE_TEST_CONTEXT: _, ...env } = process.env;
-  const run = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--tsconfig", "tests/tsconfig.real.json", "--test", "tests/domain-real.ts"], { encoding: "utf8", env });
+  const run = spawnSync(process.execPath, ["node_modules/tsx/dist/cli.mjs", "--test", "tests/domain-real.ts"], { encoding: "utf8", env });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 });
 
-test("both sources export the same names, so data.ts can swap them", () => {
-  for (const name of Object.keys(sintetico)) assert.ok(name in real, `real.ts no exporta ${name}`);
+test("the synthetic test data has the same names as an opened file, so setSource can load either", () => {
+  for (const name of Object.keys(sintetico)) assert.ok(name in real, `un archivo abierto no trae ${name}`);
 });

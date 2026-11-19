@@ -26,7 +26,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
-      # La página publicada usa siempre los datos de demostración; los reales se cargan desde un archivo.
+      # La página publicada no lleva datos: cada persona abre su tablero.json en el navegador.
       - run: npx next build
         env:
           PAGES_BASE_PATH: /${{ github.event.repository.name }}

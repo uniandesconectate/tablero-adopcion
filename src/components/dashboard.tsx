@@ -1,25 +1,35 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { DATA_SOURCE, FACULTIES, GROUPS, MIN_PROFESSORS, OBSERVATIONS, PERIODS, PROFESSORS, SELECTABLE_PERIODS, SELECTION_KEY, TEXTS, TOOLS, VALIDATION_ROWS, nextGroupProbabilities } from "@/lib/data";
-import { COUNTED, GUIDANCE, byCode, byProbability, configuredLabel, exportSelectionCsv, facultyAt, facultyLong, formatPeriod, formatProbability, getRecord, getRecords, habitualRate, lastTaughtPeriod, plainLabel, plainReason, probabilityBandFor, selectionState, share, summarize, typicalIntensity } from "@/lib/domain";
+import { DATA_SOURCE, FACULTIES, GROUPS, MIN_PROFESSORS, OBSERVATIONS, PERIODS, PROFESSORS, SELECTABLE_PERIODS, SELECTION_KEY, TEXTS, TOOLS, VALIDATION_ROWS, nextGroupProbabilities, onSource } from "@/lib/data";
+import { COUNTED, DEFAULT_PERIOD, DEFAULT_TOOL, GUIDANCE, byCode, byProbability, configuredLabel, exportSelectionCsv, facultyAt, facultyLong, formatPeriod, formatProbability, getRecord, getRecords, habitualRate, lastTaughtPeriod, plainLabel, plainReason, probabilityBandFor, selectionState, share, summarize, typicalIntensity } from "@/lib/domain";
 import { BANDS, CASE_LABELS, CONDITION_LABELS, STATES, type AdoptionState, type Condition, type Filters, type GuideSection, type PageProps, type PeriodId, type Professor, type Selection, type TeacherToolRecord, type Tool, type ToolId, type ViewId } from "@/lib/types";
 import { GroupsPage, PredictionsPage } from "./analytics-pages";
 import { Dialog, EmptyState, Icon, Metric, OffOrigin, PersonIcon, Probability, SINCE, STATE_PLAIN, STATE_SHORT, SectionHeading, StateBadge, StateBars, TARGET, bandText, conditionDescriptions, fewNote, nextTerm, number, offOrigin, plural, stateDescriptions, workshopNote } from "./ui";
 
-const DEFAULTS: Filters = { period: "202520", faculty: "Todos", tool: "rubricas", state: "Todos", group: "Todos", search: "", probability: "Todas", configured: "Todos" };
-const NAV: { id: ViewId; name: string; icon: string; number: string }[] = [
-  { id: "resumen", name: "Resumen", icon: "grid", number: "01" },
-  { id: "herramientas", name: "Talleres y herramientas", icon: "tools", number: "02" },
-  { id: "profesores", name: "Elegir profesores", icon: "users", number: "03" },
-  { id: "grupos", name: "Grupos parecidos", icon: "layers", number: "04" },
-  { id: "predicciones", name: TARGET ? `Pronóstico ${formatPeriod(TARGET)}` : "Pronóstico", icon: "trend", number: "05" },
-];
 const CONFIGURED_OPTIONS = { si: "Sí", no: "No", "sin-dato": "Sin dato" } as const;
 const STEPS_KEY = "conectate-pasos-vistos";
-const USE_TOOLS = TOOLS.filter(t => t.evidence !== "configuracion");
-const SHARED_KNOWN = OBSERVATIONS.some(row => row.shared !== null);
-const EARLY = PERIODS.filter(p => !SELECTABLE_PERIODS.includes(p)).map(formatPeriod);
+// Values taken from the open file, recomputed for each file.
+let DEFAULTS: Filters;
+let NAV: { id: ViewId; name: string; icon: string; number: string }[] = [];
+let USE_TOOLS: Tool[] = [];
+let SHARED_KNOWN = false;
+let EARLY: string[] = [];
+let conditionsShown: Condition[] = [];
+onSource(() => {
+  DEFAULTS = { period: DEFAULT_PERIOD, faculty: "Todos", tool: DEFAULT_TOOL, state: "Todos", group: "Todos", search: "", probability: "Todas", configured: "Todos" };
+  NAV = [
+    { id: "resumen", name: "Resumen", icon: "grid", number: "01" },
+    { id: "herramientas", name: "Talleres y herramientas", icon: "tools", number: "02" },
+    { id: "profesores", name: "Elegir profesores", icon: "users", number: "03" },
+    { id: "grupos", name: "Grupos parecidos", icon: "layers", number: "04" },
+    { id: "predicciones", name: TARGET ? `Pronóstico ${formatPeriod(TARGET)}` : "Pronóstico", icon: "trend", number: "05" },
+  ];
+  USE_TOOLS = TOOLS.filter(t => t.evidence !== "configuracion");
+  SHARED_KNOWN = OBSERVATIONS.some(row => row.shared !== null);
+  EARLY = PERIODS.filter(p => !SELECTABLE_PERIODS.includes(p)).map(formatPeriod);
+  conditionsShown = (Object.keys(CONDITION_LABELS) as Condition[]).filter(c => c !== "configuracion" || USE_TOOLS.length < TOOLS.length);
+});
 const isConfigOnly = (tool: Tool) => tool.evidence === "configuracion";
 /** Changing the tool clears the filters that only make sense for the previous one, in every view. */
 const toolPatch = (tool: ToolId): Partial<Filters> => ({ tool, state: "Todos", probability: "Todas", configured: "Todos" });
@@ -32,7 +42,6 @@ const caseNote: Record<Condition, string> = { regla: "las reglas aún no cubren 
 const noForecast = (record: TeacherToolRecord) => record.observation.configured ? `Ya la tiene configurada en ${formatPeriod(record.period)}` : "Sin estimación (no es 0 %)";
 // Abandona now, with effective use in the previous semester that has data (semesters without data are skipped).
 const leftNow = (record: TeacherToolRecord) => record.state === "Abandona" && record.history.filter(row => row.effective !== null).at(-2)?.effective === true;
-const conditionsShown = (Object.keys(CONDITION_LABELS) as Condition[]).filter(c => c !== "configuracion" || USE_TOOLS.length < TOOLS.length);
 const facultyText = (faculty: string) => faculty === "Todos" ? "Todas las facultades" : facultyLong(faculty);
 const CONFIG_HELP = "Configurada: la herramienta está puesta en al menos un aula del profesor (la haya puesto él u otro docente del aula). Uso con estudiantes: además, al menos un estudiante hizo algo en ella (basta uno). Son cosas distintas: un profesor puede tenerla configurada sin que sus estudiantes la usen.";
 
@@ -52,7 +61,7 @@ function readLocation() {
   const probability = params.get("probabilidad");
   if ([...BANDS, "Con estimación"].some(p => p === probability)) filters.probability = probability as Filters["probability"];
   const configured = params.get("configurada");
-  if (configured && configured in CONFIGURED_OPTIONS) filters.configured = configured as Filters["configured"];
+  if (configured && Object.prototype.hasOwnProperty.call(CONFIGURED_OPTIONS, configured)) filters.configured = configured as Filters["configured"];
   filters.search = params.get("buscar") ?? "";
   const view = NAV.some(n => n.id === params.get("vista")) ? params.get("vista") as ViewId : "resumen";
   return { view, filters };
@@ -69,7 +78,8 @@ function locationFor(view: ViewId, filters: Filters) {
   return `?${params.toString()}`;
 }
 
-export default function Dashboard() {
+/** The whole dashboard for the open file; `onChangeFile` goes back to the start screen. */
+export default function Dashboard({ onChangeFile }: { onChangeFile: () => void }) {
   const [view, setView] = useState<ViewId>("resumen");
   const [filters, setFilters] = useState<Filters>(DEFAULTS);
   const [selection, setSelection] = useState<Selection>({});
@@ -154,7 +164,7 @@ export default function Dashboard() {
       <div className="sidebar-bottom"><div className="sidebar-note"><Icon name="leaf" size={25}/><p>Los datos abren<br/><strong>conversaciones.</strong></p><span>El acompañamiento<br/>lo decides tú.</span></div><button className="text-link" onClick={() => openGuide()}><Icon name="info" size={16}/> Guía del tablero</button><div className="sidebar-signature">DIDACTA <span>·</span> Conecta-TE</div></div>
     </aside>
     <div className="main-shell">
-      <header className="topbar"><div className="breadcrumbs"><button className="button button-icon mobile-menu" aria-label="Abrir menú" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Icon name="menu"/></button><span>Estrategias de adopción</span><Icon name="chevron" size={13}/><strong>{activeView.name}</strong></div><div className="topbar-actions"><span className="demo-badge"><span/> {TEXTS.badge}</span><button className="selection-button" onClick={() => setDialog("selection")}><Icon name="users" size={17}/><span>Convocatoria ({number(selectedCount)})</span></button></div></header>
+      <header className="topbar"><div className="breadcrumbs"><button className="button button-icon mobile-menu" aria-label="Abrir menú" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}><Icon name="menu"/></button><span>Estrategias de adopción</span><Icon name="chevron" size={13}/><strong>{activeView.name}</strong></div><div className="topbar-actions"><span className="demo-badge"><span/> {TEXTS.badge}</span><button className="button button-secondary change-file" aria-label="Cambiar archivo" onClick={onChangeFile}><Icon name="upload" size={16}/><span>Cambiar archivo</span></button><button className="selection-button" onClick={() => setDialog("selection")}><Icon name="users" size={17}/><span>Convocatoria ({number(selectedCount)})</span></button></div></header>
       <main id="contenido" className="workspace">
         <div className="global-filters">
           <span className="global-filters-label"><Icon name="calendar" size={16}/> Qué estás mirando</span>

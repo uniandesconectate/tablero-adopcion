@@ -1,8 +1,12 @@
-// Run by real.test.ts with tests/tsconfig.real.json, so domain.ts reads the v2 fixture through real.ts.
+// Run by real.test.ts in its own process, so domain.ts reads only the v2 fixture.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DATA_SOURCE, FACULTIES, PERIODS, PROFESSORS, SELECTABLE_PERIODS, TEXTS, TOOLS } from "../src/lib/data";
+import fixture from "./fixtures/tablero-ejemplo.json";
+import { DATA_SOURCE, FACULTIES, PERIODS, PROFESSORS, SELECTABLE_PERIODS, TEXTS, TOOLS, setSource } from "../src/lib/data";
 import { activeRun, exportSelectionCsv, facultyAt, formatDoubleRate, getRecord, getRecords, habitualRate, originGroup, probabilityBandFor, selectionState, share, stateLabel, summarize } from "../src/lib/domain";
+import { buildRealSource } from "../src/lib/real";
+
+setSource(buildRealSource(fixture));
 
 const [p0, p1, p2, p3] = ["D-0a1b2c3d", "D-3f4e5d6c", "D-7a8b9c0d", "D-c1d2e3f4"];
 const professor = (id: string) => PROFESSORS.find(item => item.id === id)!;

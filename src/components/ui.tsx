@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
-import { MIN_PROFESSORS, PERIODS, TEXTS } from "@/lib/data";
+import { MIN_PROFESSORS, PERIODS, TEXTS, onSource } from "@/lib/data";
 import { GUIDANCE, formatDoubleRate, formatPeriod, formatProbability, habitualRate, number, plural, share } from "@/lib/domain";
 import { CASE_LABELS, STATES, type AdoptionState, type Condition, type PeriodId, type ProbabilityBand, type TeacherToolRecord, type Tool, type ToolId } from "@/lib/types";
 
@@ -23,6 +23,7 @@ const paths: Record<string, ReactNode> = {
   info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></>,
   download: <><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></>,
+  upload: <><path d="M12 15V3M7 8l5-5 5 5M4 16v5h16v-5"/></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></>,
   building: <><path d="m3 9 9-6 9 6M3 21h18M5 9v12m5-12v12m4-12v12m5-12v12M2 9h20"/></>,
   leaf: <><path d="M20 3C9 2 2 7 5 15c8 5 15-1 15-12ZM4 21 16 8"/></>,
@@ -37,33 +38,42 @@ export function Icon({ name, size = 19 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name] ?? paths.arrow}</svg>;
 }
 export const pct = (n: number, total: number) => total ? `${Math.round(n / total * 100)}\u00a0%` : "—";
-export const fewNote = `Con menos de ${MIN_PROFESSORS} profesores no se muestran porcentaje ni barra: pocos profesores.`;
+// Texts that name the open file's minimum, first semester or forecast target, recomputed for each file.
+export let fewNote = "";
 /** First semester with data: «nunca» on screen always means «desde» this one. */
-export const SINCE = formatPeriod(PERIODS[0]);
-// The forecast target is the held-out semester; the synthetic demo has none.
-export const TARGET = TEXTS.cleanTest;
-export const nextTerm = TARGET ? `en ${formatPeriod(TARGET)}` : "el semestre siguiente";
+export let SINCE = "";
+/** The forecast target is the held-out semester. */
+export let TARGET: PeriodId | null = null;
+export let nextTerm = "";
 /** Short phrase that goes next to each state name everywhere. */
-export const STATE_SHORT: Record<AdoptionState, string> = {
-  Adopta: `la usa por primera vez desde ${SINCE}`,
-  Usa: "la usa semestre tras semestre",
-  Apropia: "la usa seguido y con más contenido que 3 de cada 4 semestres de uso",
-  "No expuesto": `no la ha usado con estudiantes desde ${SINCE}`,
-  Abandona: "la dejó; puede retomarla",
-  "Sin información": "probó y no siguió, la retomó o falta información",
-};
+export let STATE_SHORT = {} as Record<AdoptionState, string>;
 /** Plain definition of each state. */
-export const STATE_PLAIN: Record<AdoptionState, string> = {
-  Adopta: `Es el primer semestre en que sus estudiantes la usan desde ${SINCE}; aún no se sabe si seguirá.`,
-  Usa: "Sus estudiantes la usan 2 o más semestres seguidos.",
-  Apropia: "La usa semestre tras semestre y pone más contenido por aula que 3 de cada 4 semestres de uso de todos los profesores.",
-  "No expuesto": `Ninguno de sus estudiantes la ha usado desde ${SINCE}. Puede haberla tenido configurada.`,
-  Abandona: "La usó 2 o más semestres seguidos y después dejó de usarla. Puede retomarla.",
-  "Sin información": "No tiene uno de los 5 estados.",
-};
+export let STATE_PLAIN = {} as Record<AdoptionState, string>;
+onSource(() => {
+  fewNote = `Con menos de ${MIN_PROFESSORS} profesores no se muestran porcentaje ni barra: pocos profesores.`;
+  SINCE = formatPeriod(PERIODS[0]);
+  TARGET = TEXTS.cleanTest;
+  nextTerm = TARGET ? `en ${formatPeriod(TARGET)}` : "el semestre siguiente";
+  STATE_SHORT = {
+    Adopta: `la usa por primera vez desde ${SINCE}`,
+    Usa: "la usa semestre tras semestre",
+    Apropia: "la usa seguido y con más contenido que 3 de cada 4 semestres de uso",
+    "No expuesto": `no la ha usado con estudiantes desde ${SINCE}`,
+    Abandona: "la dejó; puede retomarla",
+    "Sin información": "probó y no siguió, la retomó o falta información",
+  };
+  STATE_PLAIN = {
+    Adopta: `Es el primer semestre en que sus estudiantes la usan desde ${SINCE}; aún no se sabe si seguirá.`,
+    Usa: "Sus estudiantes la usan 2 o más semestres seguidos.",
+    Apropia: "La usa semestre tras semestre y pone más contenido por aula que 3 de cada 4 semestres de uso de todos los profesores.",
+    "No expuesto": `Ninguno de sus estudiantes la ha usado desde ${SINCE}. Puede haberla tenido configurada.`,
+    Abandona: "La usó 2 o más semestres seguidos y después dejó de usarla. Puede retomarla.",
+    "Sin información": "No tiene uno de los 5 estados.",
+  };
+});
 /** «Taller sugerido» carries one provisional mark: the name's own, or this one. */
 export const workshopNote = (tool: Tool) => tool.workshop.includes("provisional") ? "" : "Sugerencia inicial, pendiente de aprobación de Conecta-TE.";
-/** «30 % o más», «de 15 % a menos de 30 %»…; the synthetic demo has fixed cuts in its labels. */
+/** «30 % o más», «de 15 % a menos de 30 %»…; the synthetic test data has fixed cuts in its labels. */
 export function bandRange(toolId: ToolId, band: ProbabilityBand): string {
   const habitual = habitualRate(toolId);
   if (!TEXTS.relativeBands || habitual === null) return TEXTS.bands[band];

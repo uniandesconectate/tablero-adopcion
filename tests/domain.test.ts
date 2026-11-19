@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { FACULTIES, GROUPS, OBSERVATIONS, PERIODS, PROFESSORS, TOOLS, VALIDATION_ROWS } from "../src/lib/data";
+import { setSource } from "../src/lib/data";
 import { activeRun, classify, exportSelectionCsv, formatPeriod, formatProbability, getRecord, getRecords, plainReason, probabilityBandFor, share, stateLabel, summarize } from "../src/lib/domain";
 import type { Observation } from "../src/lib/types";
+import * as sintetico from "./sintetico";
+import { FACULTIES, GROUPS, OBSERVATIONS, PERIODS, PROFESSORS, TOOLS, VALIDATION_ROWS } from "./sintetico";
+
+setSource(sintetico);
 
 const tool = TOOLS.find(item => item.id === "rubricas")!;
 function history(effective: Array<boolean | null>, intensity = 0.5): Observation[] {

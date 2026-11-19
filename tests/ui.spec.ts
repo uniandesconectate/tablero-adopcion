@@ -1,5 +1,26 @@
 import { readFile } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import { join } from "node:path";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+// Every flow starts on the start screen and opens the v2 fixture, as a person opens tablero.json.
+const FIXTURE = join(__dirname, "fixtures", "tablero-ejemplo.json");
+type FileInput = Parameters<Locator["setInputFiles"]>[0];
+const startHeading = (page: Page) => page.getByRole("heading", { name: "Abre el archivo del semestre para empezar.", exact: true });
+const changeFile = (page: Page) => page.getByRole("button", { name: "Cambiar archivo", exact: true });
+
+/** Picks a file on the start screen; retried until `shown` appears, since a pick before hydration is lost. */
+async function choose(page: Page, files: FileInput, shown: Locator) {
+  await expect(async () => {
+    await page.getByLabel("Elegir el archivo", { exact: true }).setInputFiles(files, { timeout: 2_000 });
+    await expect(shown).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+}
+
+async function openFile(page: Page, url = "/") {
+  await page.goto(url);
+  await expect(startHeading(page)).toBeVisible();
+  await choose(page, FIXTURE, changeFile(page));
+}
 
 async function navigate(page: Page, label: string) {
   const mobileMenu = page.getByRole("button", { name: "Abrir menú", exact: true });
@@ -34,8 +55,9 @@ async function assertNoBodyOverflow(page: Page) {
 }
 
 test("un agregado abre sus profesores y conserva el contexto al navegar atrás", async ({ page }) => {
-  await page.goto("/");
-  const aggregate = page.getByRole("button", { name: /^Rúbricas: \d+ de \d+ en Adopta\. Ver profesores$/ });
+  await openFile(page);
+  await page.locator(".state-filter", { hasText: "No expuesto" }).click();
+  const aggregate = page.getByRole("button", { name: /^Rúbricas: \d+ de \d+ en No expuesto\. Ver profesores$/ });
   await expect(aggregate).toBeVisible();
   const label = await aggregate.getAttribute("aria-label");
   const count = Number(label!.match(/Rúbricas: (\d+)/)![1]);
@@ -43,21 +65,21 @@ test("un agregado abre sus profesores y conserva el contexto al navegar atrás",
   await aggregate.click();
   await expect(page.getByRole("heading", { name: "El acompañamiento tiene nombre." })).toBeVisible();
   await expect(page.getByLabel("Herramienta", { exact: true })).toHaveValue("rubricas");
-  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("Adopta");
-  await expect(page.getByRole("heading", { name: new RegExp(`^${count} profesores`) })).toBeVisible();
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  await expect(page.getByRole("heading", { name: new RegExp(`^${count} profesor`) })).toBeVisible();
   const states = await page.locator("table tbody .state-badge").allTextContents();
   expect(states.length).toBeGreaterThan(0);
-  expect(states.every(state => state === "Adopta")).toBe(true);
+  expect(states.every(state => state === "No expuesto")).toBe(true);
 
   await page.goBack();
   await expect(page.getByRole("heading", { level: 1, name: /Cada profesor/ })).toBeVisible();
   await page.goForward();
-  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("Adopta");
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
   await expect(page.getByLabel("Herramienta", { exact: true })).toHaveValue("rubricas");
 });
 
 test("la convocatoria conserva personas fuera de los filtros y después de recargar", async ({ page }) => {
-  await page.goto("/?vista=profesores");
+  await openFile(page, "/?vista=profesores");
   await expect(page.getByLabel("Buscar profesor", { exact: true })).toBeVisible();
   const names = [await professorNameAt(page, 0), await professorNameAt(page, 1)];
   for (const name of names) await page.getByRole("checkbox", { name: `Seleccionar a ${name}`, exact: true }).check();
@@ -67,6 +89,8 @@ test("la convocatoria conserva personas fuera de los filtros y después de recar
   await expect(page.getByText("0 se ven en esta lista · 2 no se ven con los filtros actuales (siguen guardados)", { exact: true })).toBeVisible();
 
   await page.reload();
+  await expect(startHeading(page)).toBeVisible();
+  await choose(page, FIXTURE, changeFile(page));
   await expect(page.getByLabel("Buscar profesor", { exact: true })).toHaveValue("ninguna-persona-coincide-98231");
   await page.getByRole("banner").getByRole("button", { name: "Convocatoria (2)", exact: true }).click();
   const selection = page.getByRole("dialog", { name: "Tu próxima convocatoria" });
@@ -78,7 +102,7 @@ test("la convocatoria conserva personas fuera de los filtros y después de recar
 });
 
 test("una ficha asocia varias herramientas a la misma persona y el CSV no la duplica", async ({ page }) => {
-  await page.goto("/?vista=profesores&herramienta=rubricas");
+  await openFile(page, "/?vista=profesores&herramienta=rubricas");
   await expect(page.getByLabel("Buscar profesor", { exact: true })).toBeVisible();
   const name = await professorNameAt(page, 0);
   await page.getByRole("button", { name: `Ver ficha de ${name}`, exact: true }).click();
@@ -100,18 +124,18 @@ test("una ficha asocia varias herramientas a la misma persona y el CSV no la dup
   const downloadPromise = page.waitForEvent("download");
   await selection.getByRole("button", { name: "Descargar lista (1 profesor)", exact: true }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^convocatoria-conectate-demo-\d{4}-[12]\.csv$/);
+  expect(download.suggestedFilename()).toBe("convocatoria-conectate-2025-2.csv");
   const csv = await readFile((await download.path())!, "utf8");
   const lines = csv.replace(/^\uFEFF/, "").trim().split(/\r?\n/);
   expect(lines).toHaveLength(2);
   expect(lines[0]).toContain("Profesor");
   expect(lines[1]).toContain(name);
   expect(lines[1]).toContain("Contenidos | Rúbricas");
-  expect(lines[1]).toContain("Datos sintéticos");
+  expect(lines[1]).toContain("Datos reales de Brightspace · uso interno");
 });
 
 test("una búsqueda sin coincidencias permite restablecer la lista", async ({ page }) => {
-  await page.goto("/?vista=profesores");
+  await openFile(page, "/?vista=profesores");
   const search = page.getByLabel("Buscar profesor", { exact: true });
   await search.fill("persona-inexistente-67258");
   await expect(page.getByRole("heading", { name: "No hay profesores con estos criterios" })).toBeVisible();
@@ -122,7 +146,7 @@ test("una búsqueda sin coincidencias permite restablecer la lista", async ({ pa
 });
 
 test("la validación aclara su objetivo y conserva la evaluación global al cambiar facultad", async ({ page }) => {
-  await page.goto("/");
+  await openFile(page);
   await navigate(page, "Grupos parecidos");
   await page.getByRole("button", { name: /profesores clasificados en Adopta;.*Ver grupo\./ }).first().click();
   const facultySelect = page.getByLabel("Facultad", { exact: true });
@@ -131,10 +155,11 @@ test("la validación aclara su objetivo y conserva la evaluación global al camb
   const facultyValue = faculty ?? await facultySelect.locator("option").nth(1).innerText();
   await facultySelect.selectOption(facultyValue);
   await navigate(page, "Pronóstico");
-  await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("debates");
-  await expect(page.getByText("Probabilidad de que configure Debates la próxima vez que dicte, calculada con los datos de 2025-2.", { exact: true })).toBeVisible();
+  // In the fixture, Rúbricas is a tool with a start in the last semester reviewed.
+  await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("rubricas");
+  await expect(page.getByText("Probabilidad de que configure Rúbricas la próxima vez que dicte (2026-1), calculada con los datos de 2025-2.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "¿Qué tan bien acierta?", exact: true }).click();
-  await expect(page.getByText("Revisión de Debates con datos sintéticos de todas las facultades y grupos.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Revisión de Rúbricas con datos reales de todas las facultades y grupos.", { exact: true })).toBeVisible();
   await expect(page.getByText(/no se aplican los filtros de facultad ni de grupo/)).toBeVisible();
   const initialEvaluation = await page.locator(".metrics-grid .metric-value").allTextContents();
   await facultySelect.selectOption("Todos");
@@ -150,7 +175,7 @@ test("la validación aclara su objetivo y conserva la evaluación global al camb
 
 test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra las fichas", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await openFile(page);
   const views = [
     ["Resumen", /Cada profesor/],
     ["Talleres y herramientas", /El uso tiene distintos momentos/],
@@ -169,10 +194,64 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await navigate(page, "Elegir profesores");
+  // Grupos parecidos leaves the list on Adopta, and the fixture has nobody there.
+  await page.getByRole("button", { name: "Limpiar filtros de la lista", exact: true }).click();
   const name = await professorNameAt(page, 0);
   await page.getByRole("button", { name: `Ver ficha de ${name}`, exact: true }).click();
   await expect(page.getByRole("dialog", { name, exact: true })).toBeVisible();
   await assertNoBodyOverflow(page);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("un archivo que no es tablero.json muestra un error claro y deja elegir otro", async ({ page }) => {
+  await page.goto("/");
+  // Next.js keeps its own empty role="alert" for route changes.
+  const alert = page.getByRole("alert").filter({ hasText: "No pudimos abrir" });
+  await choose(page, { name: "notas.json", mimeType: "application/json", buffer: Buffer.from('{"hola": 1}') }, alert);
+  await expect(alert).toContainText("No pudimos abrir «notas.json»: no es un tablero.json del proceso de datos de Conecta-TE");
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: no es un archivo JSON/));
+  const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
+  broken.uso.rubricas.efectiva.pop();
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/las columnas de filas y uso no tienen el mismo largo/));
+  await expect(changeFile(page)).toHaveCount(0);
+  await choose(page, FIXTURE, changeFile(page));
+  await expect(page.getByRole("heading", { level: 1, name: /Cada profesor/ })).toBeVisible();
+});
+
+test("también se abre arrastrando el archivo a la pantalla inicial", async ({ page }) => {
+  await page.goto("/");
+  const text = await readFile(FIXTURE, "utf8");
+  await expect(async () => {
+    const dataTransfer = await page.evaluateHandle(json => { const files = new DataTransfer(); files.items.add(new File([json], "tablero.json", { type: "application/json" })); return files; }, text);
+    await page.dispatchEvent(".drop-zone", "drop", { dataTransfer });
+    await expect(changeFile(page)).toBeVisible({ timeout: 2_000 });
+  }).toPass();
+});
+
+test("Cambiar archivo vuelve a la pantalla inicial y el tablero se rehace con el archivo nuevo", async ({ page }) => {
+  await openFile(page);
+  const nav = page.getByRole("complementary", { name: "Navegación principal" });
+  await expect(nav.getByRole("button", { name: /^Pronóstico 2026-1/ })).toBeVisible();
+  await changeFile(page).click();
+  await expect(startHeading(page)).toBeVisible();
+  await expect(nav).toHaveCount(0);
+  const next = JSON.parse(await readFile(FIXTURE, "utf8"));
+  next.pronostico.destino = "202620";
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(next)) }, changeFile(page));
+  await expect(nav.getByRole("button", { name: /^Pronóstico 2026-2/ })).toBeVisible();
+  await expect(nav.getByRole("button", { name: /^Pronóstico 2026-1/ })).toHaveCount(0);
+});
+
+test("al recargar la página vuelve a pedir el archivo y no guarda sus datos", async ({ page }) => {
+  await openFile(page, "/?vista=profesores");
+  await expect(page.getByLabel("Buscar profesor", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(startHeading(page)).toBeVisible();
+  await expect(changeFile(page)).toHaveCount(0);
+  const stored = await page.evaluate(async () => ({ local: JSON.stringify({ ...localStorage }), session: JSON.stringify({ ...sessionStorage }), databases: (await indexedDB.databases()).map(db => db.name).filter(name => !name?.startsWith("__next")) }));
+  expect(stored.local).not.toMatch(/D-[0-9a-f]{8}/);
+  expect(stored.session).toBe("{}");
+  // `next dev` opens its own debug database; the app opens none.
+  expect(stored.databases).toEqual([]);
 });

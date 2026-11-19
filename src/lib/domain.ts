@@ -1,4 +1,4 @@
-import { FACULTIES, MIN_PROFESSORS, OBSERVATIONS, PERIODS, PROFESSORS, TEXTS, TOOLS, VALIDATION_ROWS, probabilityBand, startProbability, startReason } from "./data";
+import { FACULTIES, MIN_PROFESSORS, OBSERVATIONS, PERIODS, PROFESSORS, SELECTABLE_PERIODS, TEXTS, TOOLS, VALIDATION_ROWS, onSource, probabilityBand, startProbability, startReason } from "./data";
 import { CASE_LABELS, CONDITION_LABELS, type AdoptionState, type Cause, type Condition, type Filters, type GroupId, type Observation, type PeriodId, type ProbabilityBand, type Professor, type Selection, type TeacherToolRecord, type Tool, type ToolId } from "./types";
 
 export function formatPeriod(period: string): string {
@@ -83,17 +83,35 @@ export function facultyAt(professor: Professor, period: PeriodId): string {
   return (at && professor.facultyByPeriod[at]) ?? professor.faculty;
 }
 
-const observationIndex = new Map<string, Observation[]>();
-for (const row of OBSERVATIONS) {
-  const key = `${row.professorId}:${row.toolId}`;
-  const rows = observationIndex.get(key) ?? [];
-  rows.push(row);
-  observationIndex.set(key, rows);
-}
-const recordCache = new Map<string, TeacherToolRecord>();
-const professorIndex = new Map(PROFESSORS.map(professor => [professor.id, professor]));
-const toolIndex = new Map(TOOLS.map(tool => [tool.id, tool]));
-const professorsByPeriod = new Map(PERIODS.map(period => [period, PROFESSORS.filter(professor => professor.periods.includes(period))]));
+let observationIndex = new Map<string, Observation[]>();
+let recordCache = new Map<string, TeacherToolRecord>();
+let professorIndex = new Map<string, Professor>();
+let toolIndex = new Map<ToolId, Tool>();
+let professorsByPeriod = new Map<PeriodId, Professor[]>();
+let habitual = new Map<ToolId, number | null>();
+/** Semester and tool every view opens with: the forecast origin (else the last semester) and Rúbricas when the file has it. */
+export let DEFAULT_PERIOD: PeriodId = "";
+export let DEFAULT_TOOL: ToolId = "";
+// Indexes of the open file, rebuilt each time a file is loaded.
+onSource(() => {
+  observationIndex = new Map();
+  for (const row of OBSERVATIONS) {
+    const key = `${row.professorId}:${row.toolId}`;
+    const rows = observationIndex.get(key) ?? [];
+    rows.push(row);
+    observationIndex.set(key, rows);
+  }
+  recordCache = new Map();
+  professorIndex = new Map(PROFESSORS.map(professor => [professor.id, professor]));
+  toolIndex = new Map(TOOLS.map(tool => [tool.id, tool]));
+  professorsByPeriod = new Map(PERIODS.map(period => [period, PROFESSORS.filter(professor => professor.periods.includes(period))]));
+  habitual = new Map(TOOLS.map(tool => {
+    const rows = VALIDATION_ROWS.filter(row => row.toolId === tool.id);
+    return [tool.id, rows.length ? rows.filter(row => row.outcome).length / rows.length : null];
+  }));
+  DEFAULT_PERIOD = TEXTS.forecastOrigin ?? SELECTABLE_PERIODS.at(-1)!;
+  DEFAULT_TOOL = toolIndex.has("rubricas") ? "rubricas" : TOOLS[0].id;
+});
 
 export function getRecord(professorId: string, toolId: ToolId, period: PeriodId): TeacherToolRecord {
   const key = `${professorId}:${toolId}:${period}`;
@@ -186,10 +204,6 @@ export function share(n: number, total: number): { ratio: number | null; text: s
   return { ratio: null, text: total ? `${number(n)} de ${number(total)} · pocos profesores` : "—" };
 }
 
-const habitual = new Map(TOOLS.map(tool => {
-  const rows = VALIDATION_ROWS.filter(row => row.toolId === tool.id);
-  return [tool.id, rows.length ? rows.filter(row => row.outcome).length / rows.length : null];
-}));
 /** Share of the tool's validation cases that started to configure it: the reference for its bands. */
 export const habitualRate = (toolId: ToolId): number | null => habitual.get(toolId) ?? null;
 // One decimal under 10 %; bands and the list order use this same rounded number.
@@ -217,7 +231,7 @@ export function formatDoubleRate(toolId: ToolId): string {
 const normalized = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("es");
 
 export function getRecords(filters: Partial<Filters> = {}): TeacherToolRecord[] {
-  const { period = "202520", tool = "rubricas", faculty = "Todos", group = "Todos", state = "Todos", probability = "Todas", search = "", configured = "Todos" } = filters;
+  const { period = DEFAULT_PERIOD, tool = DEFAULT_TOOL, faculty = "Todos", group = "Todos", state = "Todos", probability = "Todas", search = "", configured = "Todos" } = filters;
   const query = normalized(search.trim());
   return (professorsByPeriod.get(period) ?? []).map(professor => getRecord(professor.id, tool, period)).filter(record => {
     if (faculty !== "Todos" && record.faculty !== faculty) return false;
@@ -264,7 +278,7 @@ function csvCell(value: string): string {
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
-export function exportSelectionCsv(selection: Selection, period: PeriodId = "202520"): string {
+export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFAULT_PERIOD): string {
   // Probability, group, guidance and state reason stay out until Conecta-TE approves them (phase 4).
   const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente"];
   // Professors in code order and tools in their fixed order, as the call dialog lists them.

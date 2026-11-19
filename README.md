@@ -8,13 +8,16 @@ Este tablero ayuda a Conecta-TE a decidir a qué profesores invitar a cada talle
 
 Con eso se arma la lista de invitados.
 
-**En este repositorio no hay ningún dato de profesores.** La página publicada muestra datos de demostración, inventados para probar el recorrido.
+**En este repositorio no hay ningún dato real de profesores.** El tablero no trae datos: los lee del archivo que cada persona abre.
 
-## Ver el tablero
+## Cómo se usa
 
-Está publicado en GitHub Pages: **https://uniandesconectate.github.io/tablero-adopcion/**
+1. Descarga `tablero.json` del proceso de datos de Conecta-TE en Databricks. Sale uno nuevo cada semestre.
+2. Abre el tablero: **https://uniandesconectate.github.io/tablero-adopcion/**
+3. Arrastra `tablero.json` a la pantalla de inicio o búscalo con «Elegir el archivo». Si el archivo no es el correcto, el tablero lo dice y deja elegir otro.
+4. Para abrir otro archivo, usa «Cambiar archivo», arriba a la derecha.
 
-Los datos reales salen cada semestre del proceso de datos de Conecta-TE en Databricks, como un archivo `tablero.json`. Quien tenga acceso descarga ese archivo y lo abre en el tablero desde el botón «Cargar datos». El archivo se lee solo dentro del navegador: no se sube a ningún servidor y desaparece al cerrar la página. El botón «Cargar datos» es el siguiente paso del proyecto; mientras tanto, la página muestra los datos de demostración.
+El archivo se lee solo dentro del navegador: no se sube a ningún servidor y no se guarda. Al recargar o cerrar la página, el tablero lo vuelve a pedir. Lo único que el navegador recuerda es la convocatoria que estás armando (los códigos y talleres marcados), para no perderla al recargar.
 
 ## Correrlo en un computador
 
@@ -25,7 +28,7 @@ npm ci
 npm run dev
 ```
 
-Se abre en **http://127.0.0.1:3011**.
+Se abre en **http://127.0.0.1:3011** con la misma pantalla de inicio: abre allí tu `tablero.json`.
 
 ## Cómo se publica
 
@@ -39,18 +42,21 @@ npm test         # pruebas de las reglas
 npm run test:ui  # pruebas en el navegador (la primera vez: npm run test:install)
 ```
 
+Las pruebas usan datos de prueba que nunca llegan a la página: `tests/sintetico.ts` (profesores inventados, para las reglas) y `tests/fixtures/tablero-ejemplo.json` (un `tablero.json` pequeño de ejemplo, que las pruebas en el navegador abren desde la pantalla de inicio).
+
 ## Cuidados
 
 - Nunca se suben datos de profesores a este repositorio: la carpeta `datos/real/` está en `.gitignore`.
-- Si alguien intenta publicar la página con datos reales, la compilación se detiene con un error.
+- La compilación no lee ningún archivo de datos, así que la página publicada no puede llevar datos de profesores.
 
 ## Archivos principales
 
 | Archivo | Qué hace |
 | --- | --- |
+| `src/components/start.tsx` | Pantalla de inicio: pide `tablero.json`, lo revisa y abre el tablero |
 | `src/components/dashboard.tsx` | Navegación, resumen, herramientas, profesores, fichas y convocatoria |
 | `src/components/analytics-pages.tsx` | Grupos y predicciones |
-| `src/lib/real.ts` | Lee y revisa el archivo de datos reales (formato `tablero-adopcion/v2`) |
-| `src/lib/sintetico.ts` | Datos de demostración |
+| `src/lib/real.ts` | Revisa `tablero.json` (formato `tablero-adopcion/v2`) y lo prepara para el tablero |
+| `src/lib/data.ts` | Guarda en memoria el archivo abierto mientras la pestaña está abierta |
 | `src/lib/domain.ts` | Reglas de estados, filtros, resúmenes y exportación |
 | `app/globals.css` | Identidad visual y adaptación a celular |

@@ -18,8 +18,6 @@ export default defineConfig({
   },
   webServer: {
     command: "npm run dev",
-    // The UI tests expect the synthetic data even when the real file exists.
-    env: { TABLERO_FUENTE: "sintetica" },
     url: "http://127.0.0.1:3011",
     reuseExistingServer: true,
     timeout: 120_000,
