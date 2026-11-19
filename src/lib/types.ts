@@ -5,7 +5,11 @@ export const STATES = ["Adopta", "Usa", "Apropia", "No expuesto", "Abandona"] as
 export type AdoptionState = (typeof STATES)[number] | "Sin información";
 /** Why a record is "Sin información"; each case has its own count and stays out of percentages. */
 export const CONDITION_LABELS = { regla: "Regla pendiente para este caso", dato: "Sin información suficiente", configuracion: "Solo configuración" } as const;
+/** Plain names shown on screen; the technical ones above stay in the guide. */
+export const CASE_LABELS = { regla: "Sin estado aún", dato: "Sin estado: falta información", configuracion: "Solo configuración" } as const;
 export type Condition = keyof typeof CONDITION_LABELS;
+/** Which branch of classify() decided the record, so plain reasons never parse the technical text. */
+export type Cause = "configuracion" | "sin-observaciones" | "falta-dato" | "historia" | "inconsistente" | "no-expuesto" | "adopta" | "retomo" | "apropia" | "usa" | "abandona" | "ensayo";
 /** Probability bands from low to high; each source sets the cuts (probabilityBand) and labels (TEXTS.bands). */
 export const BANDS = ["Baja", "Media", "Alta"] as const;
 export type ProbabilityBand = (typeof BANDS)[number];
@@ -60,6 +64,7 @@ export interface TeacherToolRecord {
   /** Configuration background that comes with the forecast; null without forecast. */
   forecastReason: string | null;
   reason: string;
+  cause: Cause;
   sustainedPeriods: number;
   firstEffectivePeriod: PeriodId | null;
   /** Semesters the teacher taught up to and including this one. */
@@ -78,6 +83,8 @@ export interface Filters {
   search: string;
   /** "Con estimación": every teacher with a forecast, in any band. */
   probability: "Todas" | ProbabilityBand | "Con estimación";
+  /** Configuration in the period; the list offers it only for configuration-only tools. */
+  configured: "Todos" | "si" | "no" | "sin-dato";
 }
 export interface ValidationRow { toolId: ToolId; period: PeriodId; probability: number; outcome: boolean; }
 export interface PageProps {
@@ -85,6 +92,7 @@ export interface PageProps {
   onFilters: (patch: Partial<Filters>) => void;
   onNavigate: (view: ViewId, patch?: Partial<Filters>) => void;
   onProfessor: (record: TeacherToolRecord) => void;
-  onMethod: () => void;
+  onMethod: (section?: GuideSection) => void;
 }
+export type GuideSection = "taller" | "estados" | "configurada" | "reglas" | "grupos" | "pronostico" | "tablero";
 export type Selection = Record<string, ToolId[]>;

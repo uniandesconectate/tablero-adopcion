@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { GROUPS, RETURN_SHARE, TEXTS, TOOLS, VALIDATION_ROWS } from "@/lib/data";
-import { formatPeriod, formatDoubleRate, formatProbability, getRecords, habitualRate, probabilityBandFor, share, stateLabel } from "@/lib/domain";
+import { byCode, byProbability, facultyLong, formatPeriod, formatProbability, getRecords, habitualRate, plainLabel, probabilityBandFor, share } from "@/lib/domain";
 import {
   BANDS,
   STATES,
@@ -14,60 +14,39 @@ import {
   type TeacherToolRecord,
   type ValidationRow,
 } from "@/lib/types";
-import { EmptyState, Icon, Metric, OffOrigin, SectionHeading, StateBadge, StateBars, offOrigin, pct, plural } from "@/components/ui";
+import { EmptyState, Icon, Metric, OffOrigin, PersonIcon, SINCE, STATE_SHORT, SectionHeading, StateBadge, StateBars, TARGET, bandRange, number, offOrigin, pct, plural } from "@/components/ui";
 
 // Groups were built from the configuration of these tools (LockDown and Turnitin live inside quizzes and activities).
 const CIRCULAR = new Set(["contenidos", "actividades", "anuncios", "calificaciones", "cuestionarios", "rubricas", "debates", "lockdown", "turnitin"]);
 // Below this many observed starts, validation figures are fragile (decision #17).
 const FEW_STARTS = 30;
 
-const decimal = (value: number, digits = 1) => new Intl.NumberFormat("es-CO", {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: digits,
-}).format(value);
-
 const barStyle = (value: number): CSSProperties => ({ "--bar-width": `${Math.min(100, Math.max(0, value * 100))}%` } as CSSProperties);
-
-function toolSelect(filters: Filters, onFilters: PageProps["onFilters"]) {
-  return <label className="field">Herramienta
-    <select value={filters.tool} onChange={event => onFilters({ tool: event.target.value as Filters["tool"] })}>
-      {TOOLS.map(tool => <option value={tool.id} key={tool.id}>{tool.name}</option>)}
-    </select>
-  </label>;
-}
+const facultyText = (faculty: string) => faculty === "Todos" ? "Todas las facultades" : facultyLong(faculty);
 
 function PersonButton({ record, onProfessor }: { record: TeacherToolRecord; onProfessor: PageProps["onProfessor"] }) {
   return <button className="person-cell inline-link" onClick={() => onProfessor(record)}>
-    <span className="avatar" aria-hidden="true">{record.professor.initials}</span>
-    <span><strong>{record.professor.name}</strong><span className="muted">{record.faculty}</span></span>
+    <PersonIcon initials={record.professor.initials}/>
+    <span><strong>{record.professor.name}</strong><span className="muted">{facultyLong(record.faculty)}</span></span>
   </button>;
 }
 
 export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMethod }: PageProps) {
   const activeState = STATES.find(state => state === filters.state) ?? "Adopta";
   const tool = TOOLS.find(item => item.id === filters.tool)!;
-  const records = getRecords({
-    period: filters.period,
-    faculty: filters.faculty,
-    tool: filters.tool,
-    state: "Todos",
-    group: "Todos",
-    search: "",
-    probability: "Todas",
-  });
-  // Keep the state shown here in the filters, so a hidden «Sin información» does not reach Profesores.
+  const period = formatPeriod(filters.period);
+  const records = getRecords({ period: filters.period, faculty: filters.faculty, tool: filters.tool });
+  // Keep the state shown here in the filters, so a hidden «Sin información» does not reach Elegir profesores.
   useEffect(() => { if (filters.state !== activeState) onFilters({ state: activeState }); }, [filters.state, activeState, onFilters]);
   const configOnly = tool.evidence === "configuracion";
-  // Configuration-only tools compare «configured» over teachers with a known value; the rest compare a state over evaluable teachers.
+  // Configuration-only tools compare «configured» over teachers with a known value; the rest compare a state over classified teachers.
   const counted = (record: TeacherToolRecord) => configOnly ? record.observation.configured === true : record.state === activeState;
   const inBase = (record: TeacherToolRecord) => configOnly ? record.observation.configured !== null : record.state !== "Sin información";
   const inGroup = (id: string) => records.filter(record => record.originGroup === id);
   const withoutOrigin = records.filter(record => record.originGroup === null).length;
   const selectedGroup = GROUPS.find(group => group.id === filters.group);
   const selectedRecords = selectedGroup ? inGroup(selectedGroup.id) : [];
-  const selectedMembers = selectedRecords
-    .filter(counted)
-    .sort((a, b) => a.professor.name.localeCompare(b.professor.name, "es"));
+  const selectedMembers = selectedRecords.filter(counted).sort(byCode);
   const groupData = GROUPS.map(group => {
     const members = inGroup(group.id);
     const base = members.filter(inBase).length;
@@ -78,6 +57,7 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
     if (selectedGroup) onNavigate("profesores", {
       group: selectedGroup.id,
       state: configOnly ? "Todos" : state,
+      configured: configOnly ? "si" : "Todos",
       tool: filters.tool,
       search: "",
       probability: "Todas",
@@ -87,27 +67,27 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">Grupos similares</p><h1 tabIndex={-1}>Distintas formas de usar la plataforma.</h1>
-        <p className="muted">Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes. Cada profesor cuenta en su grupo de partida: el del semestre anterior en que dictó.</p></div>
-      <button className="button button-ghost" onClick={onMethod}><Icon name="info"/>Cómo se leen los grupos</button>
+      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Distintas formas de usar la plataforma.</h1>
+        <p className="muted">Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (por ejemplo, en Adopta)`} y abrir esa lista.</p>
+        <p className="muted">Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes. Cada profesor cuenta en el grupo que tenía en su semestre anterior: el último que dictó antes de {period}.</p></div>
+      <button className="button button-ghost" onClick={() => onMethod("grupos")}><Icon name="info"/>Guía: los grupos</button>
     </div>
 
     <div className="toolbar">
-      {toolSelect(filters, onFilters)}
-      {!configOnly && <label className="field">Estado a comparar
+      {!configOnly && <label className="field">Estado que quieres comparar
         <select value={activeState} onChange={event => onFilters({ state: event.target.value as AdoptionState })}>
-          {STATES.map(state => <option value={state} key={state}>{state}</option>)}
+          {STATES.map(state => <option value={state} key={state}>{state} · {STATE_SHORT[state]}</option>)}
         </select>
       </label>}
-      <p className="muted subgroup-note">{formatPeriod(filters.period)} · {filters.faculty === "Todos" ? "Todas las facultades" : filters.faculty} · grupo de partida</p>
+      <p className="muted subgroup-note">{period} · {facultyText(filters.faculty)} · grupo en su semestre anterior</p>
     </div>
 
     <div className="two-column">
       <section className="panel" aria-label="Comparación de grupos">
-        <SectionHeading eyebrow={tool.name} title={configOnly ? "Configurada en al menos un aula" : `Profesores en ${activeState}`}
+        <SectionHeading eyebrow={tool.name} title={configOnly ? `${tool.name} configurada en al menos un aula, por grupo` : `Profesores en ${activeState}, por grupo`}
           description={configOnly
-            ? "Configuración, no uso con estudiantes: quienes la tienen configurada entre quienes dictaron con dato de configuración, dentro de cada grupo de partida (el del semestre anterior en que dictó)."
-            : "Porcentaje entre quienes tienen un estado evaluable, dentro de cada grupo de partida (el del semestre anterior en que dictó). Todos los grupos usan la misma escala de 0 a 100 %."}/>
+            ? "Configuración, no uso con estudiantes: quienes la tienen configurada entre quienes dictaron y tienen dato de configuración, dentro de cada grupo (el de su semestre anterior)."
+            : `Porcentaje entre quienes tienen uno de los 5 estados en ${tool.name}, dentro de cada grupo. Todos los grupos usan la misma escala de 0 a 100 %.`}/>
         <div className="panel-body">
           {records.length === 0 ? <EmptyState title="Sin profesores en este contexto" description="Prueba con otra facultad o herramienta."/> : <div className="bar-list">
             {groupData.map(({ group, members, base, count, unknown, part }) => <button
@@ -116,36 +96,36 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
               aria-pressed={selectedGroup?.id === group.id}
               onClick={() => onFilters({ group: group.id })}
               aria-label={configOnly
-                ? `${group.name}: ${count} de ${base} profesores con dato la tienen configurada; ${unknown} sin dato. Ver grupo.`
-                : `${group.name}: ${count} de ${base} profesores evaluables en ${activeState}; ${unknown} sin estado del marco. Ver grupo.`}
+                ? `${group.name}: ${number(count)} de ${number(base)} profesores con dato la tienen configurada; ${number(unknown)} sin dato. Ver grupo.`
+                : `${group.name}: ${number(count)} de ${number(base)} profesores clasificados en ${activeState}; ${number(unknown)} sin estado. Ver grupo.`}
             >
               <span className="group-card-heading"><strong>{group.name}</strong><strong>{part.text}</strong></span>
               {part.ratio !== null && <span className="bar-track"><span className="bar-fill" style={barStyle(part.ratio)}/></span>}
-              <span className="muted">{count}/{base} {configOnly ? `con dato · ${unknown} sin dato` : `evaluables · ${unknown} sin estado del marco`} · {members.length} en el grupo</span>
+              <span className="muted">{configOnly ? `${number(count)} de ${number(base)} con dato la tienen configurada · ${number(unknown)} sin dato` : `${number(count)} de ${number(base)} clasificados están en ${activeState} · ${number(unknown)} sin estado`} · {number(members.length)} en el grupo</span>
             </button>)}
           </div>}
-          {withoutOrigin > 0 && <p className="muted subgroup-note">{plural(withoutOrigin, "profesor dicta", "profesores dictan")} por primera vez y no {withoutOrigin === 1 ? "tiene" : "tienen"} grupo de partida: no {withoutOrigin === 1 ? "está" : "están"} en estas barras.</p>}
-          {CIRCULAR.has(tool.id) && <p className="muted subgroup-note">Los grupos se formaron con la configuración de las herramientas de la plataforma{tool.id === "lockdown" || tool.id === "turnitin" ? `, y ${tool.name} solo existe dentro de cuestionarios o actividades` : `, entre ellas ${tool.name}`}. Por eso esta comparación repite en parte cómo se armaron los grupos.</p>}
-          <p className="muted subgroup-note">Los grupos describen patrones de uso. No representan una escala de calidad ni niveles de competencia.</p>
+          {withoutOrigin > 0 && <p className="muted subgroup-note">{plural(withoutOrigin, "profesor no tiene", "profesores no tienen")} un semestre anterior registrado desde {SINCE} (por ejemplo, porque {withoutOrigin === 1 ? "dicta" : "dictan"} por primera vez), así que no {withoutOrigin === 1 ? "tiene" : "tienen"} grupo y no {withoutOrigin === 1 ? "aparece" : "aparecen"} en estas barras.</p>}
+          {CIRCULAR.has(tool.id) && <p className="muted subgroup-note">Ojo al comparar: los grupos se armaron mirando qué herramientas configura cada profesor, {tool.id === "lockdown" || tool.id === "turnitin" ? `entre ellas cuestionarios y actividades, y ${tool.name} solo existe dentro de cuestionarios o actividades` : `entre ellas ${tool.name}`}. Por eso, parte de las diferencias entre grupos viene de cómo se armaron y no es un hallazgo nuevo.</p>}
+          <p className="muted subgroup-note">Los grupos describen qué combinación de herramientas configura cada profesor. No son una escala de calidad ni niveles de competencia.</p>
+          {!configOnly && activeState === "Adopta" && <p className="muted subgroup-note">Un porcentaje bajo en Adopta puede querer decir que en ese grupo muchos ya la usaban: mira también Usa y Apropia en el detalle del grupo.</p>}
         </div>
       </section>
 
       <section className="panel" aria-label="Detalle del grupo seleccionado">
         {selectedGroup ? <>
-          <SectionHeading eyebrow="Dentro del grupo · grupo nominal, no es un nivel" title={selectedGroup.name} description={selectedGroup.description}/>
+          <SectionHeading eyebrow="Dentro del grupo · describe, no califica" title={selectedGroup.name} description={selectedGroup.description}/>
           <div className="panel-body">
-            <p className="muted">{plural(selectedRecords.length, "profesor", "profesores")} de este grupo de partida en el contexto elegido · {tool.name}</p>
+            <p className="muted">{plural(selectedRecords.length, "profesor", "profesores")} de este grupo · {tool.name} · {period} · {facultyText(filters.faculty)}</p>
             {!configOnly && <StateBars records={selectedRecords} onSelect={openMembers} compact/>}
-            <SectionHeading title={`Personas ${target}`} description="Abre una ficha para revisar la evidencia por herramienta."/>
+            <SectionHeading title={`Personas ${target}`} description="Los 5 primeros por código, no es un orden de prioridad. Abre una ficha para ver su historia en cada herramienta."/>
             {selectedMembers.length ? <>
               <div className="group-member-list">
                 {selectedMembers.slice(0, 5).map(record => <PersonButton key={record.professor.id} record={record} onProfessor={onProfessor}/>)}
               </div>
-              {/* Profesores has no «configured» filter, so configuration-only tools open the whole group. */}
-              <button className="button button-secondary" onClick={() => openMembers()}>{configOnly ? `Ver ${plural(selectedRecords.length, "profesor", "profesores")} del grupo` : selectedMembers.length === 1 ? "Ver 1 profesor" : `Ver los ${selectedMembers.length} profesores`}<Icon name="arrow"/></button>
+              <button className="button button-secondary" onClick={() => openMembers()}>{selectedMembers.length === 1 ? "Ver a esta persona" : `Ver a los ${number(selectedMembers.length)} y elegir`}<Icon name="arrow"/></button>
             </> : <EmptyState title={`Sin profesores ${target}`} description={configOnly ? "Nadie de este grupo la tiene configurada en el contexto elegido." : "Puedes explorar otro estado en las barras de este grupo."}/>}
           </div>
-        </> : <EmptyState title="Elige un grupo para conocerlo" description="Verás sus estados de adopción y los profesores de la herramienta seleccionada."/>}
+        </> : <EmptyState title="Elige un grupo para conocerlo" description={`Verás los estados de sus profesores en ${tool.name} y quiénes ${configOnly ? "la tienen configurada" : "son"}.`}/>}
       </section>
     </div>
   </>;
@@ -164,28 +144,25 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
   const [groupId, setGroupId] = useState<Filters["group"]>("Todos");
   const tool = TOOLS.find(item => item.id === filters.tool)!;
   const origin = TEXTS.forecastOrigin ?? filters.period;
-  // Predicciones uses the group at the forecast origin, not the group of origin of getRecords.
-  const records = getRecords({
-    period: filters.period,
-    faculty: filters.faculty,
-    tool: filters.tool,
-    state: "Todos",
-    search: "",
-    probability: "Todas",
-  }).filter(record => groupId === "Todos" || record.professor.groupByPeriod[origin] === groupId);
+  const period = formatPeriod(filters.period);
+  const wholeUniversity = filters.faculty === "Todos" ? "" : " (en toda la universidad)";
+  // Pronóstico uses the group at the forecast origin, not the group of origin of getRecords.
+  const records = getRecords({ period: filters.period, faculty: filters.faculty, tool: filters.tool })
+    .filter(record => groupId === "Todos" || record.professor.groupByPeriod[origin] === groupId);
   const eligible = records.filter(record => record.probability !== null);
   const expected = eligible.reduce((sum, record) => sum + (record.probability ?? 0), 0);
-  const sortedCandidates = [...eligible].sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0));
+  const sortedCandidates = [...eligible].sort(byProbability);
+  const missing = records.filter(record => record.probability === null);
+  const missingParts = [
+    [missing.filter(r => r.observation.configured === true).length, "ya la tiene configurada", "ya la tienen configurada"],
+    [missing.filter(r => r.observation.configured === null).length, "sin dato de configuración", "sin dato de configuración"],
+    [missing.filter(r => r.observation.configured === false).length, "sin pronóstico", "sin pronóstico"],
+  ] as const;
   const habitual = habitualRate(filters.tool);
-  const bandRange = (band: ProbabilityBand) => !TEXTS.relativeBands ? TEXTS.bands[band] : habitual === null ? "" : {
-    Baja: `Menos de ${formatProbability(habitual)}`,
-    Media: `De ${formatProbability(habitual)} a menos de ${formatDoubleRate(filters.tool)}`,
-    Alta: `${formatDoubleRate(filters.tool)} o más`,
-  }[band];
-  const bands = BANDS.map(band => ({
+  const bands = [...BANDS].reverse().map((band: ProbabilityBand) => ({
     band,
     label: TEXTS.relativeBands ? TEXTS.bands[band] : band,
-    range: bandRange(band),
+    range: TEXTS.relativeBands ? bandRange(filters.tool, band) : TEXTS.bands[band],
     count: eligible.filter(record => probabilityBandFor(record.tool.id, record.probability!) === band).length,
   }));
   const maximumBandCount = Math.max(1, ...bands.map(band => band.count));
@@ -193,12 +170,13 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
   const toolValidation = VALIDATION_ROWS.filter(row => row.toolId === filters.tool);
   const rows = toolValidation.filter(row => validationPeriod === "Todos" || row.period === validationPeriod);
   const positives = rows.filter(row => row.outcome).length;
+  const allPositives = toolValidation.filter(row => row.outcome).length;
   const predictedPositive = rows.filter(row => row.probability >= threshold / 100);
   const truePositive = predictedPositive.filter(row => row.outcome).length;
   const meanProbability = rows.length ? rows.reduce((sum, row) => sum + row.probability, 0) / rows.length : 0;
   // Five groups with the same number of cases, from the lowest to the highest probability.
-  const byProbability = [...rows].sort((a, b) => a.probability - b.probability);
-  const calibration = Array.from({ length: 5 }, (_, index) => byProbability.slice(Math.floor(index * rows.length / 5), Math.floor((index + 1) * rows.length / 5)))
+  const ascending = [...rows].sort((a, b) => a.probability - b.probability);
+  const calibration = Array.from({ length: 5 }, (_, index) => ascending.slice(Math.floor(index * rows.length / 5), Math.floor((index + 1) * rows.length / 5)))
     .filter(inBand => inBand.length)
     .map(inBand => ({
       label: `${formatProbability(inBand[0].probability)} – ${formatProbability(inBand.at(-1)!.probability)}`,
@@ -206,11 +184,14 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
       observed: inBand.filter(row => row.outcome).length,
       probability: inBand.reduce((sum, row) => sum + row.probability, 0) / inBand.length,
     }));
-  const rate = (n: number, total: number) => n ? formatProbability(n / total) : "0 %";
+  const rate = (n: number, total: number) => n ? formatProbability(n / total) : "0\u00a0%";
+  const per100 = (band: { observed: number; count: number }) => number(Math.round(band.observed / band.count * 100));
   const brierText = (value: number) => value.toLocaleString("es-CO", { minimumFractionDigits: 4, maximumFractionDigits: 4 });
   const comparisonPeriods = [...new Set(rows.map(row => row.period))].sort();
+  const validationLabel = (value: PeriodId | "Todos") => value === "Todos" ? `Ambos (${availablePeriods.map(formatPeriod).join(" y ")})` : formatPeriod(value);
+  const arrival = validationPeriod === "Todos" ? availablePeriods.map(formatPeriod).join(" o a ") : formatPeriod(validationPeriod);
 
-  // Profesores filters by group of origin, so the group chosen here is not passed on.
+  // Elegir profesores filters by group of origin, so the group chosen here is not passed on.
   const openCandidates = (probability: Filters["probability"] = "Con estimación") => onNavigate("profesores", {
     period: origin,
     tool: filters.tool,
@@ -218,143 +199,147 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
     state: "Todos",
     group: "Todos",
     search: "",
+    configured: "Todos",
   });
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">Predicciones</p><h1 tabIndex={-1}>Qué podría pasar, con qué respaldo.</h1>
-        <p className="muted">Consulta oportunidades de configuración y revisa cómo se comporta esta estimación.</p></div>
-      <button className="button button-ghost" onClick={onMethod}><Icon name="info"/>Acerca de las estimaciones</button>
+      <div><p className="eyebrow">05 / PRONÓSTICO</p><h1 tabIndex={-1}>Qué podría pasar, con qué respaldo.</h1>
+        <p className="muted">Consulta quién podría empezar a configurar {tool.name} y revisa qué tan bien acertó este cálculo antes.</p></div>
+      <button className="button button-ghost" onClick={() => onMethod("pronostico")}><Icon name="info"/>Guía: el pronóstico</button>
     </div>
 
-    <div className="analytics-tabs segmented" aria-label="Secciones de predicciones">
-      <button className={tab === "estimates" ? "is-active" : ""} aria-pressed={tab === "estimates"} onClick={() => setTab("estimates")}>Estimaciones</button>
-      <button className={tab === "validation" ? "is-active" : ""} aria-pressed={tab === "validation"} onClick={() => setTab("validation")}>Resultados de validación</button>
+    <div className="analytics-tabs segmented" aria-label="Secciones del pronóstico">
+      <button className={tab === "estimates" ? "is-active" : ""} aria-pressed={tab === "estimates"} onClick={() => setTab("estimates")}>Quién podría empezar</button>
+      <button className={tab === "validation" ? "is-active" : ""} aria-pressed={tab === "validation"} onClick={() => setTab("validation")}>¿Qué tan bien acierta?</button>
     </div>
 
     <div className="toolbar">
-      {toolSelect(filters, onFilters)}
-      {tab === "validation" ? <label className="field">Periodo de llegada evaluado
+      {tab === "validation" ? <label className="field">Semestre revisado
         <select value={validationPeriod} onChange={event => setValidationPeriod(event.target.value as PeriodId | "Todos")}>
-          {availablePeriods.map(period => <option value={period} key={period}>{formatPeriod(period)}</option>)}
-          <option value="Todos">Todos los periodos evaluados</option>
+          {availablePeriods.map(value => <option value={value} key={value}>{validationLabel(value)}</option>)}
+          <option value="Todos">{validationLabel("Todos")}</option>
         </select>
       </label> : <>
-        <label className="field">Grupo en {formatPeriod(origin)}
+        <label className="field">Grupo en {formatPeriod(origin)} (semestre del que parte el pronóstico)
           <select value={groupId} onChange={event => setGroupId(event.target.value as Filters["group"])}>
             <option value="Todos">Todos los grupos</option>
             {GROUPS.map(group => <option value={group.id} key={group.id}>{group.name}</option>)}
           </select>
         </label>
-        <p className="muted subgroup-note">Origen: {formatPeriod(origin)} · {filters.faculty === "Todos" ? "Todas las facultades" : filters.faculty}</p>
+        <p className="muted subgroup-note">Calculado con datos de {formatPeriod(origin)} · {facultyText(filters.faculty)}</p>
       </>}
     </div>
 
     {tab === "estimates" ? <>
-      <div className="callout"><Icon name="info"/><p><strong>Probabilidad de empezar a configurar {tool.name.toLocaleLowerCase("es")}.</strong> Se estima para quienes no la tienen configurada, la próxima vez que dicten. Puede incluir una reactivación. No predice los estados Adopta, Usa o Apropia ni el beneficio de un taller.</p></div>
+      <div className="callout"><Icon name="info"/><p><strong>Probabilidad de que configure {tool.name} la próxima vez que dicte{TARGET ? ` (${formatPeriod(TARGET)})` : ""}, calculada con los datos de {formatPeriod(origin)}.</strong> Solo para quienes no la tenían configurada en {formatPeriod(origin)}; incluye a quienes la tuvieron antes y la dejaron. No predice los estados Adopta, Usa o Apropia ni el beneficio de un taller.</p></div>
 
       {tool.forecast === false ? <section className="panel"><EmptyState title="Sin modelo para esta herramienta" description={`Para ${tool.name} no hay pronóstico de empezar a configurar.`}/></section> : offOrigin(filters.period) ? <section className="panel"><OffOrigin period={filters.period} onGo={period => onFilters({ period })}/></section> : <>
       <div className="metrics-grid three-column">
-        <Metric label="Profesores con estimación" value={eligible.length} detail={`De ${records.length} profesores en este contexto`} icon="users"/>
-        <Metric label="Inicios de configuración esperados" value={decimal(expected)} detail={`Suma de probabilidades para ${tool.name}, si todos vuelven a dictar${RETURN_SHARE < 1 ? `; suelen volver ${returning} de cada 10` : ""}. Es una estimación, no una lista de resultados seguros.`} icon="trend"/>
-        <Metric label="Sin estimación en este contexto" value={records.length - eligible.length} detail="Incluye herramientas ya configuradas o información insuficiente." icon="info"/>
+        <Metric label="Con probabilidad calculada" value={number(eligible.length)} detail={`de los ${plural(records.length, "profesor", "profesores")} que dictaron en ${period}${records.length ? ` (${pct(eligible.length, records.length)})` : ""}`} icon="users"/>
+        <Metric label="Cuántos podrían configurarla" value={`unos ${number(Math.round(expected))}`} detail={<>Si todos volvieran a dictar. Es la suma de las probabilidades ({number(expected)}): una estimación, no una lista de personas que seguro empezarán.{RETURN_SHARE < 1 && <details className="metric-more"><summary>Ver detalle</summary>Suelen volver a dictar {returning} de cada 10 profesores{wholeUniversity}; no todos vuelven el semestre siguiente.</details>}</>} icon="trend"/>
+        <Metric label="Sin probabilidad" value={number(missing.length)} detail={`${missingParts.filter(([n]) => n > 0).map(([n, one, many]) => `${number(n)} ${n === 1 ? one : many}`).join(" · ")}${missing.length ? ". " : ""}${number(eligible.length)} + ${number(missing.length)} = ${number(records.length)}.`} icon="info"/>
       </div>
 
       {eligible.length ? <div className="two-column">
         <section className="panel">
-          <SectionHeading title="Probabilidades, en tres rangos" description="Cada profesor cuenta una vez para esta herramienta. Selecciona un rango para revisar su lista."/>
+          <SectionHeading title="Probabilidades, en tres rangos" description="Cada profesor cuenta una vez. Toca un rango para ver su lista, ordenada por probabilidad."/>
           <div className="panel-body">
-            <div className="probability-histogram" aria-label="Distribución de probabilidades de empezar a configurar">
+            <div className="probability-histogram" aria-label="Distribución de probabilidades de configurar">
               {bands.map(band => <button className="histogram-column" key={band.band} onClick={() => openCandidates(band.band)} aria-label={`${band.label}: ${plural(band.count, "profesor", "profesores")}; ${band.range}. Ver lista.`}>
-                <strong>{band.count}</strong>
+                <strong>{number(band.count)}</strong>
                 {band.count > 0 && <span className="histogram-bar" style={{ height: `${band.count / maximumBandCount * 132}px` }} aria-hidden="true"/>}
                 <span className="histogram-label"><strong>{band.label}</strong><span>{band.range}</span></span>
               </button>)}
             </div>
-            <p className="muted subgroup-note">Los rangos sirven para explorar las estimaciones; no son niveles de adopción ni de calidad docente.{TEXTS.relativeBands && habitual !== null && ` Lo habitual: ${formatProbability(habitual)} empezó a configurar ${tool.name} en la evaluación del modelo.`}{groupId !== "Todos" && " La lista de Profesores no aplica este grupo."}</p>
+            <p className="muted subgroup-note">{TEXTS.relativeBands && habitual !== null && `Lo habitual en ${tool.name}: ${formatProbability(habitual)} (${number(allPositives)} de ${number(toolValidation.length)} veces en que no la tenían configurada, al llegar a ${availablePeriods.map(formatPeriod).join(" o ")}). `}Los rangos sirven para explorar; no son niveles de adopción ni de calidad docente.{groupId !== "Todos" && " Ojo: la lista que se abre no filtra por el grupo elegido aquí, porque allá se usa el grupo del semestre anterior."}</p>
           </div>
         </section>
 
         <section className="panel">
-          <SectionHeading title="Personas para revisar" description="Primeros casos al ordenar por esta probabilidad. La selección para un taller sigue siendo una decisión de Conecta-TE."
-            action={<button className="button button-ghost" onClick={() => openCandidates()}>Ver lista<Icon name="arrow"/></button>}/>
-          <div className="table-wrap"><table className="data-table">
-            <thead><tr><th scope="col">Profesor</th><th scope="col">Estado observado</th><th scope="col">Empezar a configurar</th></tr></thead>
+          <SectionHeading title={`Los ${Math.min(6, sortedCandidates.length)} con mayor probabilidad`} description={`De ${number(eligible.length)} con probabilidad calculada. No es una lista de invitados: la selección para un taller sigue siendo una decisión de Conecta-TE.`}
+            action={<button className="button button-ghost" onClick={() => openCandidates()}>Ver a los {number(eligible.length)} en orden<Icon name="arrow"/></button>}/>
+          <div className="table-wrap"><table className="data-table as-cards">
+            <thead><tr><th scope="col">Profesor</th><th scope="col">Probabilidad{TARGET ? ` (${formatPeriod(TARGET)})` : ""}</th><th scope="col">Estado en {period}</th></tr></thead>
             <tbody>{sortedCandidates.slice(0, 6).map(record => <tr key={record.professor.id}>
-              <td><PersonButton record={record} onProfessor={onProfessor}/></td>
-              <td><StateBadge state={record.state} label={stateLabel(record)}/></td>
-              <td><span className="probability-value">{formatProbability(record.probability!)}</span></td>
+              <td data-label="Profesor"><PersonButton record={record} onProfessor={onProfessor}/></td>
+              <td data-label={`Probabilidad${TARGET ? ` (${formatPeriod(TARGET)})` : ""}`}><span className="probability-value">{formatProbability(record.probability!)}</span></td>
+              <td data-label={`Estado en ${period}`}><StateBadge state={record.state} label={tool.evidence === "configuracion" ? "Configurada: no" : plainLabel(record)}/></td>
             </tr>)}</tbody>
           </table></div>
         </section>
-      </div> : <section className="panel"><EmptyState title="Sin oportunidades con estimación" description="En este contexto no hay profesores con la herramienta ausente y evidencia suficiente para este pronóstico. Puedes cambiar la herramienta o los filtros."/></section>}
+      </div> : <section className="panel"><EmptyState title="Nadie con probabilidad calculada" description={`En este contexto no hay profesores sin ${tool.name} configurada y con datos suficientes para el pronóstico. Prueba otra herramienta o facultad.`}/></section>}
       </>}
-      <p className="muted subgroup-note">{TEXTS.model}</p>
+      <p className="muted subgroup-note"><strong>Cómo se calculó:</strong> {TEXTS.modelPlain}{availablePeriods.length > 0 && ` La confianza que se muestra viene de revisarlo contra ${availablePeriods.map(formatPeriod).join(" y ")} (pestaña «¿Qué tan bien acierta?»).`}</p>
+      <details className="subgroup-note technical"><summary>Ver detalle técnico</summary><p>{TEXTS.model}</p></details>
     </> : <>
-      <div className="callout"><Icon name="info"/><p><strong>Evaluación global de {tool.name} con {TEXTS.badge.toLocaleLowerCase("es")}.</strong> Incluye todas las facultades y grupos de los periodos evaluados; los filtros de facultad y grupo no se aplican aquí. El objetivo observado es empezar a configurar, no un estado del marco de adopción.{TEXTS.cleanTest && ` Esta evaluación ya se usó para escoger el modelo; la prueba limpia será ${formatPeriod(TEXTS.cleanTest)}.`}</p></div>
+      {filters.faculty !== "Todos" && <p className="faculty-warning"><strong>Estas cifras son de toda la universidad, no de {facultyLong(filters.faculty)}.</strong></p>}
+      <div className="callout"><Icon name="info"/><p><strong>Revisión de {tool.name} con {TEXTS.badge.toLocaleLowerCase("es")} de todas las facultades y grupos.</strong> Aquí no se aplican los filtros de facultad ni de grupo. Se mide si la configuraron, no su estado.{TEXTS.cleanTest && ` Esta revisión ya se usó para elegir el pronóstico, así que puede verse algo mejor de lo que es; la prueba definitiva será con ${formatPeriod(TEXTS.cleanTest)}.`}</p></div>
 
       {rows.length ? <>
+        {calibration.length > 1 && <p className="validation-summary">De cada 100 casos con la probabilidad más alta (la quinta parte de arriba), {per100(calibration.at(-1)!)} la configuraron; de cada 100 con la más baja (la quinta parte de abajo), {per100(calibration[0])}.</p>}
         <div className="metrics-grid three-column">
-          <Metric label="Oportunidades evaluadas" value={rows.length} detail="Cada caso es una oportunidad histórica de configurar esta herramienta." icon="users"/>
-          <Metric label="Empezaron a configurar" value={`${positives}/${rows.length}`} detail={`${pct(positives, rows.length)} de los casos evaluados${positives < FEW_STARTS ? " · pocos inicios: cifras frágiles" : ""}`} icon="check"/>
-          <Metric label="Probabilidad media estimada" value={`${Math.round(meanProbability * 100)} %`} detail={`Frente a ${pct(positives, rows.length)} observado en estos mismos casos.`} icon="trend"/>
+          <Metric label="Casos revisados" value={number(rows.length)} detail={`Cada caso es un profesor que no tenía ${tool.name} configurada en un semestre; se mira si la configuró al llegar a ${arrival}.${validationPeriod === "Todos" && availablePeriods.length > 1 ? " Una misma persona puede contar en los dos semestres revisados." : ""}`} icon="users"/>
+          <Metric label="La configuraron" value={`${number(positives)} de ${number(rows.length)}`} detail={`${pct(positives, rows.length)} de los casos revisados${positives < FEW_STARTS ? " · pocos inicios: cifras frágiles" : ""}${validationPeriod !== "Todos" && availablePeriods.length > 1 ? `. Contando ${availablePeriods.map(formatPeriod).join(" y ")} juntos fue ${pct(allPositives, toolValidation.length)} (${number(allPositives)} de ${number(toolValidation.length)}): ese es «lo habitual».` : ""}`} icon="check"/>
+          <Metric label="Probabilidad promedio que dio el pronóstico" value={`${Math.round(meanProbability * 100)}\u00a0%`} detail={`Frente a ${pct(positives, rows.length)} que la configuró en estos mismos casos.`} icon="trend"/>
         </div>
 
         <div className="two-column">
           <section className="panel">
-            <SectionHeading title="¿Se parecen lo estimado y lo observado?" description="Los casos se ordenan por probabilidad y se reparten en 5 grupos con el mismo número de casos. Una media global cercana puede ocultar diferencias entre grupos."/>
-            <div className="table-wrap"><table className="data-table">
-              <thead><tr><th scope="col">Rango estimado</th><th scope="col">Casos</th><th scope="col">Media estimada</th><th scope="col">Inicios observados</th></tr></thead>
+            <SectionHeading title="¿Acierta en cada nivel de probabilidad?" description="Ordenamos los casos de menor a mayor probabilidad y los partimos en 5 partes con el mismo número de casos. En cada parte se compara lo que esperaba el pronóstico con lo que pasó. Que acierte en el total no garantiza que acierte en cada parte."/>
+            <div className="table-wrap"><table className="data-table as-cards">
+              <thead><tr><th scope="col">Probabilidad que dio (rango)</th><th scope="col">Casos</th><th scope="col">Esperado (promedio)</th><th scope="col">La configuraron</th></tr></thead>
               <tbody>{calibration.map((band, index) => <tr key={index}>
-                <th scope="row">{band.label}</th>
-                <td>{band.count}</td>
-                <td><strong>{formatProbability(band.probability)}</strong><span className="bar-track"><span className="bar-fill" style={barStyle(band.probability)}/></span></td>
-                <td><strong>{rate(band.observed, band.count)}</strong><span className="bar-track"><span className="bar-fill" data-state="Adopta" style={barStyle(band.observed / band.count)}/></span><span className="muted">{band.observed}/{band.count}</span></td>
+                <th scope="row" data-label="Probabilidad que dio (rango)">{band.label}</th>
+                <td data-label="Casos">{number(band.count)}</td>
+                <td data-label="Esperado (promedio)"><strong>{formatProbability(band.probability)}</strong><span className="bar-track"><span className="bar-fill" style={barStyle(band.probability)}/></span></td>
+                <td data-label="La configuraron"><strong>{rate(band.observed, band.count)}</strong><span className="bar-track"><span className="bar-fill" data-state="Adopta" style={barStyle(band.observed / band.count)}/></span><span className="muted">{number(band.observed)} de {number(band.count)}</span></td>
               </tr>)}</tbody>
             </table></div>
           </section>
 
           <section className="panel">
-            <SectionHeading title="¿A cuántos identificaríamos?" description="Mueve el punto de corte para ver sus resultados históricos. Este ejercicio no decide quién recibe una invitación."/>
+            <SectionHeading title="¿A cuántos identificaríamos?" description="Mueve el corte para ver qué habría pasado antes. Este ejercicio no decide quién recibe una invitación."/>
             <div className="panel-body validation-controls">
-              <label className="field threshold-control">Señalar un posible inicio a partir de <strong>{threshold} %</strong>
+              <label className="field threshold-control">Si solo señaláramos a quienes tienen <strong>{threshold}&nbsp;% o más</strong>
                 <input aria-label="Punto de corte para evaluar la predicción" type="range" min="0" max="100" step="5" value={threshold} onChange={event => setThreshold(Number(event.target.value))}/>
               </label>
               <div className="metric">
-                <div className="metric-label">De los casos señalados, empezaron a configurar</div>
+                <div className="metric-label">De los señalados, la configuraron</div>
                 <div className="metric-value">{pct(truePositive, predictedPositive.length)}</div>
-                <div className="metric-detail">{truePositive}/{predictedPositive.length} casos señalados{predictedPositive.length === 0 ? " · No se señaló ningún caso con este corte." : ""}</div>
+                <div className="metric-detail">{number(truePositive)} de {plural(predictedPositive.length, "caso señalado", "casos señalados")}{predictedPositive.length === 0 ? " · No se señaló ningún caso con este corte." : ""}</div>
               </div>
               <div className="metric">
-                <div className="metric-label">De quienes empezaron, habríamos identificado</div>
+                <div className="metric-label">De quienes la configuraron, habríamos señalado a</div>
                 <div className="metric-value">{pct(truePositive, positives)}</div>
-                <div className="metric-detail">{truePositive}/{positives} inicios observados{positives === 0 ? " · No hubo inicios en estos casos." : ""}</div>
+                <div className="metric-detail">{number(truePositive)} de {number(positives)}{positives === 0 ? " · No hubo inicios en estos casos." : ""}</div>
               </div>
+              <p className="small muted">Con un corte de {threshold}&nbsp;% se señalan {number(predictedPositive.length)} de {number(rows.length)} casos y {number(truePositive)} de ellos la configuraron. De los {number(positives)} que la configuraron, se habría llegado a {number(truePositive)}. Con un corte más bajo se llega a más personas, con más casos que no la configuraron.</p>
             </div>
           </section>
         </div>
 
         <details className="panel">
-          <summary className="panel-header">Comparación con una referencia sencilla y detalle de cálculo</summary>
+          <summary className="panel-header">¿Acierta más que una regla simple? (comparación y detalle de cálculo)</summary>
           <div className="panel-body">
-            <p>La referencia asigna a cada caso la tasa de inicio de configuración observada en periodos anteriores de esta misma herramienta. Nunca utiliza el resultado del periodo que intenta anticipar.</p>
+            <p>La regla simple le da a cada caso la parte de profesores que configuró esta herramienta en semestres anteriores; nunca usa el resultado del semestre que intenta anticipar.</p>
             <div className="table-wrap"><table className="data-table">
-              <thead><tr><th scope="col">Llegada evaluada</th><th scope="col">Casos</th><th scope="col">Brier del modelo</th><th scope="col">Brier de referencia</th><th scope="col">Error frente a la referencia</th></tr></thead>
-              <tbody>{comparisonPeriods.map(period => {
-                const current = toolValidation.filter(row => row.period === period);
-                const previous = toolValidation.filter(row => row.period < period);
+              <thead><tr><th scope="col">Semestre revisado</th><th scope="col">Casos</th><th scope="col">Error del pronóstico (Brier)</th><th scope="col">Error de la regla simple (Brier)</th><th scope="col">Diferencia</th></tr></thead>
+              <tbody>{comparisonPeriods.map(value => {
+                const current = toolValidation.filter(row => row.period === value);
+                const previous = toolValidation.filter(row => row.period < value);
                 const historicalRate = previous.length ? previous.filter(row => row.outcome).length / previous.length : null;
                 const baseline = historicalRate === null ? null : current.reduce((sum, row) => sum + (historicalRate - Number(row.outcome)) ** 2, 0) / current.length;
                 const model = brier(current);
                 const reduction = model === null || !baseline ? null : (baseline - model) / baseline;
-                return <tr key={period}><th scope="row">{formatPeriod(period)}</th><td>{current.length}</td><td>{model === null ? "—" : brierText(model)}</td><td>{baseline === null ? "Sin periodo anterior disponible" : brierText(baseline)}</td><td>{reduction === null ? "—" : `${decimal(Math.abs(reduction) * 100)} % ${reduction >= 0 ? "menos" : "más"} error`}</td></tr>;
+                return <tr key={value}><th scope="row">{formatPeriod(value)}</th><td>{number(current.length)}</td><td>{model === null ? "—" : brierText(model)}</td><td>{baseline === null ? "Sin semestre anterior para armar la regla simple" : brierText(baseline)}</td><td>{reduction === null ? "—" : `${number(Math.abs(reduction) * 100)}\u00a0% ${reduction >= 0 ? "menos" : "más"} error que la regla simple`}</td></tr>;
               })}</tbody>
             </table></div>
-            <p className="muted">Brier es el promedio de la diferencia al cuadrado entre la probabilidad y el resultado; un valor menor indica menos error en estos casos. Esta comparación evalúa configuración. No demuestra aprendizaje, apropiación ni efecto de los talleres.</p>
-            <p className="muted">No hay identificadores, facultad ni grupo en estas filas de validación. Su desempeño no se desglosa por esos segmentos ni se interpreta como personas únicas entre periodos.</p>
+            <p className="muted">Brier: promedio de (probabilidad − resultado)²; un valor más bajo quiere decir menos error en estos casos. Esta comparación mide configuración: no demuestra aprendizaje, apropiación ni efecto de los talleres.</p>
+            <p className="muted">Esta revisión no guarda quién es cada caso ni su facultad o grupo: no se puede separar por facultad o grupo, y una misma persona puede contar en los dos semestres.</p>
           </div>
         </details>
-      </> : <section className="panel"><EmptyState title="Sin evaluación para este periodo y herramienta" description="Selecciona otro periodo de llegada. No se trasladan resultados de otras herramientas a esta selección."/></section>}
+      </> : <section className="panel"><EmptyState title="Sin revisión para este semestre y herramienta" description="Elige otro semestre revisado. No se usan resultados de otras herramientas."/></section>}
     </>}
   </>;
 }

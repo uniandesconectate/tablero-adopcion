@@ -76,11 +76,11 @@ test("R7: forecasts show at the origin whatever the state, in bands relative to 
   assert.deepEqual([configurationOnly.probability, configurationOnly.forecastReason], [0.47, "La configuró en 6 semestres anteriores (desde 2020-2)."]);
   assert.deepEqual([getRecord(p0, "rubricas", "202510").probability, getRecord(p0, "rubricas", "202510").forecastReason], [null, null]);
   assert.equal(habitualRate("rubricas"), 0.2);
-  assert.equal(formatDoubleRate("rubricas"), "40 %", "the label shows the cut the bands use");
+  assert.equal(formatDoubleRate("rubricas"), "40\u00a0%", "the label shows the cut the bands use");
   assert.deepEqual([ids({ tool: "rubricas", probability: "Baja" }), ids({ tool: "rubricas", probability: "Media" }), ids({ tool: "rubricas", probability: "Alta" })], [[p1], [p3], [p0]]);
   assert.equal(ids({ tool: "rubricas", probability: "Con estimación" }).length, 3);
   assert.equal(probabilityBandFor("rubricas", 0.1996), "Media", "20 % shown next to a habitual 20 % is not below it");
-  assert.equal(TEXTS.bands.Alta, "Más del doble");
+  assert.equal(TEXTS.bands.Alta, "Más del doble de lo habitual");
   const feedback = TOOLS.find(tool => tool.id === "feedbackfruits")!;
   assert.equal(feedback.forecast, false);
   assert.equal(habitualRate("feedbackfruits"), null);
@@ -99,13 +99,13 @@ test("R10: the CSV keeps the last taught state for whoever did not teach, and co
   assert.deepEqual(rows.map(row => row.split(";")[1]), [`"${p1}"`, `"${p2}"`, `"${p3}"`], "code order");
   assert.ok(rows[0].includes('"Ciencias";') && rows[0].includes('"Debates: No expuesto";'));
   assert.ok(rows[1].includes('"Artes y Humanidades";'));
-  assert.ok(rows[1].includes('"Rúbricas: Abandona (último semestre dictado: 2024-2) | LockDown: solo configuración: no en 2024-2 | FeedbackFruits: solo configuración: sí en 2024-2";'));
+  assert.ok(rows[1].includes('"Rúbricas: Abandona (último semestre dictado: 2024-2) | LockDown: configurada en 2024-2: no | FeedbackFruits: configurada en 2024-2: sí";'));
   assert.ok(rows[2].includes('"Sin facultad registrada";'));
   const gap = exportSelectionCsv({ [p1]: ["debates"] }, "202310");
   assert.ok(gap.includes('"Ingeniería";') && gap.includes('"Debates: No expuesto (último semestre dictado: 2022-1)";'));
   assert.equal(selectionState(p3, "rubricas", "202220"), "no había dictado hasta 2022-2");
-  assert.equal(selectionState(p0, "feedbackfruits", "202410"), "solo configuración: sin dato en 2024-1");
-  assert.equal(TEXTS.csvName("202520"), "convocatoria-conectate-202520.csv");
+  assert.equal(selectionState(p0, "feedbackfruits", "202410"), "configurada en 2024-1: sin dato");
+  assert.equal(TEXTS.csvName("202520"), "convocatoria-conectate-2025-2.csv");
 });
 
 test("R11: reach and shared classrooms reach the record", () => {

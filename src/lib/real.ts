@@ -34,6 +34,13 @@ const amount = (value: unknown) => value === null || typeof value === "number" ?
 const probability = (value: unknown) => typeof value === "number" && value >= 0 && value <= 1 ? value : fail(`una probabilidad no está entre 0 y 1: ${JSON.stringify(value)}.`);
 const at = (index: number, length: number, where: string) => Number.isInteger(index) && index >= 0 && index < length ? index : fail(`${where} usa un índice que no existe: ${index}.`);
 const unique = (ids: string[], what: string) => { if (new Set(ids).size !== ids.length) fail(`hay ${what} con el id repetido.`); };
+/** «202520» → «2025-2» inside the export's texts. */
+const human = (text: string) => text.replace(/\b(\d{4})(10|20)\b/g, (_, year: string, term: string) => `${year}-${term === "10" ? "1" : "2"}`);
+// Academic faculties of ref_v3.facultades_t (pipeline_databricks/v3/00_Ref_parametros.py).
+const FACULTY_NAMES: Record<string, string> = { AD: "Administración", AQ: "Arquitectura y Diseño", AT: "Artes y Humanidades", CI: "Ciencias", CP: "Centro de Estudios en Periodismo", DE: "Derecho", EC: "Economía", ED: "Educación", EG: "Escuela de Gobierno Alberto Lleras", HU: "Ciencias Sociales", IN: "Ingeniería", ME: "Medicina" };
+const CONTRACTS: Record<string, string> = { catedra: "Cátedra", planta: "Planta", asistente_graduado: "Asistente graduado", otro_profesor: "Otro profesor", otro: "Otro", sin_asignar: "Sin asignar" };
+// shortcut: external-tool reasons count from 2020-2 like the internal ones (k5_markov.SEMESTRES); move the mark to the exporter when it is regenerated.
+const sinceStart = (text: string) => text.replace(/^(La tuvo en sus aulas en algún semestre anterior|No la ha tenido en sus aulas antes)\.$/, "$1 (desde 2020-2).");
 const aligned = (what: string, columns: unknown[][]) => { if (!columns.every(column => Array.isArray(column) && column.length === columns[0].length)) fail(`las columnas de ${what} no tienen el mismo largo.`); };
 
 /** Validates the export and builds the same exports as sintetico.ts. */
@@ -68,7 +75,7 @@ export function buildRealSource(input: unknown) {
   unique(profesores.id, "profesores");
   if (!profesores.id.every(id => /^D-[0-9a-f]{8}$/.test(id))) fail("hay un profesor sin código seudónimo (D- y 8 caracteres hexadecimales).");
   // shortcut: `department` carries the contract label shown in the UI; add a field if both are ever needed.
-  const PROFESSORS: Professor[] = profesores.id.map((id, i) => ({ id, name: id, initials: id.slice(2, 4).toUpperCase(), faculty: profesores.facultad[i] ?? "Sin facultad registrada", facultyByPeriod: {}, department: `Contrato: ${profesores.contrato[i] ?? "sin registro"}`, groupByPeriod: {}, periods: [] }));
+  const PROFESSORS: Professor[] = profesores.id.map((id, i) => ({ id, name: id, initials: id.slice(2, 4).toUpperCase(), faculty: profesores.facultad[i] ?? "Sin facultad registrada", facultyByPeriod: {}, department: `Contrato: ${CONTRACTS[profesores.contrato[i] ?? ""] ?? profesores.contrato[i] ?? "sin registro"}`, groupByPeriod: {}, periods: [] }));
 
   aligned("filas y uso", [filas.profesor, filas.periodo, filas.grupo, filas.facultad, filas.compartidas, ...TOOLS.flatMap(tool => [uso[tool.id].configurada, uso[tool.id].efectiva, uso[tool.id].alcance, uso[tool.id].intensidad])]);
   const groupIds = new Set(GROUPS.map(group => group.id));
@@ -101,7 +108,7 @@ export function buildRealSource(input: unknown) {
     const tool = toolAt(pronosticos.herramienta[i], "un pronóstico");
     if (!tool.forecast) fail(`${tool.name} no tiene modelo y trae pronósticos.`);
     if (typeof pronosticos.razon[i] !== "string") fail("cada pronóstico debe traer su razón como texto.");
-    return [`${professorAt(p, "un pronóstico").id}:${tool.id}`, [probability(pronosticos.prob[i]), pronosticos.razon[i]]];
+    return [`${professorAt(p, "un pronóstico").id}:${tool.id}`, [probability(pronosticos.prob[i]), sinceStart(pronosticos.razon[i])]];
   }));
   if (forecasts.size !== pronosticos.profesor.length) fail("hay pronósticos repetidos para un mismo profesor y herramienta.");
   const next = data.perfil_siguiente;
@@ -121,24 +128,34 @@ export function buildRealSource(input: unknown) {
   const configurationOnly = TOOLS.filter(tool => tool.evidence === "configuracion").map(tool => tool.name);
   const TEXTS = {
     badge: "Datos reales",
-    identity: "Código seudónimo · uso interno",
+    identity: "Código seudónimo: no es el nombre · uso interno",
     csv: `${fuente.etiqueta} · generado el ${fuente.generado}`,
-    selection: "Cada profesor aparece con su código seudónimo y los datos son de uso interno.",
-    estimate: `Estimación del modelo, versión ${modelo.version}`,
-    estimates: `Probabilidades del modelo, con origen en ${pronostico.origen}, para quienes no tienen configuración registrada.`,
-    model: `Modelo: ${modelo.nombre} · versión ${modelo.version} · entrenado hasta ${modelo.entrenado_hasta}. ${modelo.supuestos.join(" ")}`,
+    selection: "Cada profesor aparece con su código seudónimo; los datos son de uso interno. Pendiente: el equipo definirá cómo pasar del código a la persona.",
+    estimate: `Versión del pronóstico: ${modelo.version}.`,
+    estimates: human(`Probabilidades del modelo, con origen en ${pronostico.origen}, para quienes no tienen configuración registrada.`),
+    model: human(`Modelo: ${modelo.nombre} · versión ${modelo.version} · entrenado hasta ${modelo.entrenado_hasta}. ${modelo.supuestos.join(" ")}`),
+    modelPlain: human(`Con lo que cada profesor configuró en ${pronostico.origen} se estima qué hará la próxima vez que dicte; se supone que vuelve a dictar el semestre siguiente (${pronostico.destino}). El pronóstico aprendió de todos los cambios entre semestres hasta ${modelo.entrenado_hasta}. No usa datos de ${pronostico.destino}: se guardan para la prueba final.`),
+    groupsOrigin: "Los 5 grupos los formó Lina, del equipo del proyecto, juntando a profesores que configuran herramientas parecidas (un método que arma 5 grupos; por eso «K5»).",
     method: "Este prototipo usa datos reales de Brightspace; cada profesor aparece con un código seudónimo.",
     rulesTitle: "Reglas de este tablero (provisionales)",
-    rules: [reglas.uso_efectivo, `Usa requiere ${reglas.periodos_seguidos} semestres seguidos con uso efectivo. ${reglas.seguidos}`, reglas.corte_apropia, `${configurationOnly.join(", ")}: solo hay datos de configuración, así que no reciben un estado del marco.`],
-    intensity: (threshold: number | null) => threshold === null ? "Solo hay datos de configuración" : `Objetos por aula, contando todas sus aulas · corte provisional: ${threshold.toLocaleString("es-CO")}, por validar con Conecta-TE`,
+    rules: [reglas.uso_efectivo, `Usa requiere ${reglas.periodos_seguidos} semestres seguidos con uso efectivo. ${reglas.seguidos}`, human(reglas.corte_apropia), `${configurationOnly.join(", ")}: solo hay datos de configuración, así que no reciben un estado del marco.`],
+    /** The same rules in plain words, for the first level. */
+    plainRules: (tool: Tool) => [
+      "Uso con estudiantes: la herramienta está configurada en al menos un aula y al menos un estudiante hizo algo en ella (basta uno). Si ningún estudiante tiene dato medible, queda sin información.",
+      `Usa: ${reglas.periodos_seguidos} semestres seguidos o más con uso con estudiantes. Solo cuentan los semestres en que el profesor dicta: un semestre sin dictar no corta la racha ni suma.`,
+      human(`Apropia: además de usarla seguido, en sus semestres de uso pone de forma típica más ${reglas.intensidad} que 3 de cada 4 semestres con uso de todos los profesores (de ${periodos[0]} a ${pronostico.origen}).${tool.threshold === null ? "" : ` En ${tool.name} el corte es más de ${tool.threshold.toLocaleString("es-CO")} ${reglas.intensidad}, contando todas sus aulas.`} Es un corte provisional que debe validar Conecta-TE. Si se recalcula con más semestres, pueden cambiar estados del pasado.`),
+    ],
+    unit: reglas.intensidad,
+    intensity: (threshold: number | null) => threshold === null ? "Solo hay datos de configuración" : `En sus semestres seguidos de uso, contando todas sus aulas. Para Apropia: más de ${threshold.toLocaleString("es-CO")} (corte provisional, pendiente de validar por Conecta-TE).`,
     toolRule: (tool: Tool): [string, string] => tool.evidence === "configuracion"
-      ? ["Solo hay datos de configuración.", `Para ${tool.name} no se asigna un estado del marco: tenerla configurada no equivale a uso efectivo.`]
-      : ["Cómo se calcula.", `${reglas.uso_efectivo} Usa requiere ${reglas.periodos_seguidos} semestres seguidos con uso efectivo. ${reglas.seguidos} ${reglas.corte_apropia} Para ${tool.name}, ese corte es ${tool.threshold?.toLocaleString("es-CO")} ${reglas.intensidad}, contando todas sus aulas.`],
+      ? ["Solo hay datos de configuración.", `De ${tool.name} solo sabemos si está configurada: tenerla configurada no quiere decir que sus estudiantes la usen, así que no recibe estado.`]
+      : ["Cómo se calcula.", human(`${reglas.uso_efectivo} Usa requiere ${reglas.periodos_seguidos} semestres seguidos con uso efectivo. ${reglas.seguidos} ${reglas.corte_apropia} Para ${tool.name}, ese corte es ${tool.threshold?.toLocaleString("es-CO")} ${reglas.intensidad}, contando todas sus aulas. Valor típico = mediana del tramo activo (sus semestres seguidos de uso). Corte = percentil 75.`)],
     forecastOrigin: pronostico.origen as PeriodId | null,
-    csvName: (period: PeriodId) => `convocatoria-conectate-${period}.csv`,
+    facultyNames: FACULTY_NAMES,
+    csvName: (period: PeriodId) => `convocatoria-conectate-${human(period)}.csv`,
     neverExposed: (taught: number, since: string) => `Sin uso efectivo en ${taught === 1 ? "el semestre que dictó" : `los ${taught} semestres que dictó`} desde ${since}.`,
-    bands: { Baja: "Menos que lo habitual", Media: "Hasta el doble", Alta: "Más del doble" } as Record<ProbabilityBand, string>,
-    searchPlaceholder: "Código…",
+    bands: { Baja: "Menos que lo habitual", Media: "Entre lo habitual y el doble", Alta: "Más del doble de lo habitual" } as Record<ProbabilityBand, string>,
+    searchPlaceholder: "Código (D-…)",
     relativeBands: true,
     // The validation already chose the model; the forecast target is the first clean test.
     cleanTest: pronostico.destino as PeriodId | null,

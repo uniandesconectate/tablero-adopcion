@@ -1,10 +1,14 @@
 import { FACULTIES, MIN_PROFESSORS, OBSERVATIONS, PERIODS, PROFESSORS, TEXTS, TOOLS, VALIDATION_ROWS, probabilityBand, startProbability, startReason } from "./data";
-import { CONDITION_LABELS, type AdoptionState, type Condition, type Filters, type GroupId, type Observation, type PeriodId, type ProbabilityBand, type Professor, type Selection, type TeacherToolRecord, type Tool, type ToolId } from "./types";
+import { CASE_LABELS, CONDITION_LABELS, type AdoptionState, type Cause, type Condition, type Filters, type GroupId, type Observation, type PeriodId, type ProbabilityBand, type Professor, type Selection, type TeacherToolRecord, type Tool, type ToolId } from "./types";
 
 export function formatPeriod(period: string): string {
   const match = /^(\d{4})(10|20)$/.exec(period);
   return match ? `${match[1]}-${match[2] === "10" ? "1" : "2"}` : period;
 }
+
+/** Colombian digits: «2.249», «184,6». */
+export const number = (n: number) => new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1, useGrouping: "always" }).format(n);
+export const plural = (n: number, one: string, many: string) => `${number(n)} ${n === 1 ? one : many}`;
 
 const periodIndex = (period: PeriodId) => PERIODS.indexOf(period);
 const median = (values: number[]) => {
@@ -15,7 +19,7 @@ const median = (values: number[]) => {
 const semesters = (n: number) => n === 1 ? "1 semestre" : `${n} semestres`;
 
 /** `taught` are the semesters the professor taught: completeness and runs skip semesters without teaching. */
-export function classify(history: Observation[], tool: Tool, taught: readonly PeriodId[] = PERIODS): { state: AdoptionState; condition: Condition | null; reason: string; sustainedPeriods: number; firstEffectivePeriod: PeriodId | null } {
+export function classify(history: Observation[], tool: Tool, taught: readonly PeriodId[] = PERIODS): { state: AdoptionState; condition: Condition | null; reason: string; cause: Cause; sustainedPeriods: number; firstEffectivePeriod: PeriodId | null } {
   const all = history.filter(row => row.toolId === tool.id).sort((a, b) => periodIndex(a.period) - periodIndex(b.period));
   const latest = all.at(-1);
   // A semester without effective-use data is skipped like one without teaching: it neither cuts nor counts a run.
@@ -25,34 +29,34 @@ export function classify(history: Observation[], tool: Tool, taught: readonly Pe
   let sustainedPeriods = 0;
   if (latest?.effective !== null) for (let i = rows.length - 1; i >= 0 && rows[i].effective === true; i--) sustainedPeriods++;
   const skipped = !missing.size ? "" : missing.size === 1 ? " Un semestre no tiene dato de uso efectivo: no corta ni cuenta en su historia." : ` ${missing.size} semestres no tienen dato de uso efectivo: no cortan ni cuentan en su historia.`;
-  const result = (state: AdoptionState, reason: string, condition: Condition | null = null) => ({ state, condition, reason: condition ? reason : reason + skipped, sustainedPeriods, firstEffectivePeriod });
-  if (tool.evidence === "configuracion") return result("Sin información", "Para esta herramienta solo hay datos de configuración: no se asigna un estado del marco.", "configuracion");
-  if (!latest) return result("Sin información", "No hay observaciones para esta herramienta.", "dato");
-  if (latest.effective === null) return result("Sin información", "Falta el dato de uso efectivo de este semestre, así que no se le asigna un estado.", "dato");
+  const result = (state: AdoptionState, reason: string, cause: Cause, condition: Condition | null = null) => ({ state, condition, reason: condition ? reason : reason + skipped, cause, sustainedPeriods, firstEffectivePeriod });
+  if (tool.evidence === "configuracion") return result("Sin información", "Para esta herramienta solo hay datos de configuración: no se asigna un estado del marco.", "configuracion", "configuracion");
+  if (!latest) return result("Sin información", "No hay observaciones para esta herramienta.", "sin-observaciones", "dato");
+  if (latest.effective === null) return result("Sin información", "Falta el dato de uso efectivo de este semestre, así que no se le asigna un estado.", "falta-dato", "dato");
   const expected = taught.filter(period => periodIndex(period) <= periodIndex(latest.period) && !missing.has(period));
   const duplicatePeriods = new Set(all.map(row => row.period)).size !== all.length;
   const fullHistory = expected.length === rows.length && expected.every((period, i) => rows[i].period === period);
   if (duplicatePeriods || !fullHistory) {
-    return result("Sin información", "La historia tiene observaciones faltantes o no comparables; no se interpreta la ausencia como falta de uso.", "dato");
+    return result("Sin información", "La historia tiene observaciones faltantes o no comparables; no se interpreta la ausencia como falta de uso.", "historia", "dato");
   }
   // Effective use is an independent field, never inferred from configuration.
   if (rows.some(row => row.effective === true && row.configured !== true)) {
-    return result("Sin información", "La evidencia de configuración y uso efectivo es inconsistente.", "dato");
+    return result("Sin información", "La evidencia de configuración y uso efectivo es inconsistente.", "inconsistente", "dato");
   }
   if (!firstEffectivePeriod) {
     const configured = rows.filter(row => row.configured === true).length;
-    return result("No expuesto", TEXTS.neverExposed(rows.length, formatPeriod(PERIODS[0])) + (configured ? ` La tuvo configurada en ${semesters(configured)}, sin actividad de estudiantes.` : ""));
+    return result("No expuesto", TEXTS.neverExposed(rows.length, formatPeriod(PERIODS[0])) + (configured ? ` La tuvo configurada en ${semesters(configured)}, sin actividad de estudiantes.` : ""), "no-expuesto");
   }
   if (latest.effective === true) {
     const earlierUse = rows.slice(0, -1).some(row => row.effective === true);
-    if (!earlierUse) return result("Adopta", "Primer uso efectivo registrado; todavía no se confirma su continuidad.");
-    if (sustainedPeriods < 2) return result("Sin información", "Retomó el uso después de una interrupción; este tablero no asigna una etapa a la reactivación.", "regla");
+    if (!earlierUse) return result("Adopta", "Primer uso efectivo registrado; todavía no se confirma su continuidad.", "adopta");
+    if (sustainedPeriods < 2) return result("Sin información", "Retomó el uso después de una interrupción; este tablero no asigna una etapa a la reactivación.", "retomo", "regla");
     const currentRun = rows.slice(-sustainedPeriods);
     const completeIntensity = currentRun.every(row => row.intensity !== null && Number.isFinite(row.intensity));
     if (completeIntensity && tool.threshold !== null && median(currentRun.map(row => row.intensity!)) > tool.threshold) {
-      return result("Apropia", `Uso efectivo durante ${sustainedPeriods} periodos consecutivos e intensidad mediana superior al corte de apropiación (${tool.threshold}).`);
+      return result("Apropia", `Uso efectivo durante ${sustainedPeriods} periodos consecutivos e intensidad mediana superior al corte de apropiación (${tool.threshold}).`, "apropia");
     }
-    return result("Usa", `Uso efectivo durante ${sustainedPeriods} periodos consecutivos${completeIntensity ? "; la mediana no supera el corte de apropiación." : "; falta intensidad comparable para evaluar apropiación."}`);
+    return result("Usa", `Uso efectivo durante ${sustainedPeriods} periodos consecutivos${completeIntensity ? "; la mediana no supera el corte de apropiación." : "; falta intensidad comparable para evaluar apropiación."}`, "usa");
   }
   let maximumRun = 0;
   let run = 0;
@@ -60,8 +64,8 @@ export function classify(history: Observation[], tool: Tool, taught: readonly Pe
     run = row.effective === true ? run + 1 : 0;
     maximumRun = Math.max(maximumRun, run);
   }
-  if (maximumRun >= 2) return result("Abandona", "Se observó uso efectivo sostenido y posteriormente dejó de registrarse; no implica abandono definitivo.");
-  return result("Sin información", "Hubo un ensayo aislado que no continuó; no cumple la condición de uso sostenido previo para Abandona.", "regla");
+  if (maximumRun >= 2) return result("Abandona", "Se observó uso efectivo sostenido y posteriormente dejó de registrarse; no implica abandono definitivo.", "abandona");
+  return result("Sin información", "Hubo un ensayo aislado que no continuó; no cumple la condición de uso sostenido previo para Abandona.", "ensayo", "regla");
 }
 
 /** Last semester the professor taught up to and including `period`, or null. */
@@ -118,14 +122,68 @@ export function getRecord(professorId: string, toolId: ToolId, period: PeriodId)
 
 /** The state, or the case behind "Sin información" («Regla pendiente para este caso», …). */
 export const stateLabel = (record: Pick<TeacherToolRecord, "state" | "condition">): string => record.condition ? CONDITION_LABELS[record.condition] : record.state;
+/** Same, with the plain case names shown on screen («Sin estado aún», …). */
+export const plainLabel = (record: Pick<TeacherToolRecord, "state" | "condition">): string => record.condition ? CASE_LABELS[record.condition] : record.state;
+export const facultyName = (code: string): string => TEXTS.facultyNames[code] ?? code;
+/** «Administración (AD)», or the value as it comes when the source has no name for it. */
+export const facultyLong = (code: string): string => TEXTS.facultyNames[code] ? `${TEXTS.facultyNames[code]} (${code})` : code;
+/** What to talk about in each state: an initial suggestion, the same for everyone in that state. */
+export const GUIDANCE: Record<AdoptionState, string> = { "No expuesto": "Explorar un primer acercamiento", Adopta: "Acompañar la continuidad", Usa: "Explorar una profundización", Apropia: "Revisar necesidades específicas", Abandona: "Conversar sobre la interrupción", "Sin información": "Completar el contexto: conversar para entender su caso" };
+// What "configurada" counts for each external tool (decision #4a), as k5_markov.py reads it.
+// shortcut: texts copied from the exporter's sources; move them to the contract if those sources change.
+export const COUNTED: Partial<Record<ToolId, string>> = {
+  lockdown: "Cuenta si algún cuestionario de sus aulas pide LockDown.",
+  turnitin: "Cuenta si algún buzón de tareas de sus cursos tiene Turnitin, que puede venir de la plantilla del curso.",
+  padlet: "Cuenta si aparece en alguna de sus aulas por cualquier vía, por ejemplo un enlace en un tema.",
+  genially: "Cuenta si aparece en alguna de sus aulas por cualquier vía, por ejemplo un enlace en un tema.",
+  feedbackfruits: "Cuenta si aparece en alguna de sus aulas por cualquier vía, por ejemplo un enlace en un tema.",
+  voicethread: "Cuenta si aparece en alguna de sus aulas por cualquier vía. Solo se ve por enlace rápido y se reconoce de forma indirecta, así que la cifra puede quedarse corta.",
+};
 export const configuredLabel = (configured: boolean | null) => configured === null ? "sin dato" : configured ? "sí" : "no";
+export const configuredKey = (configured: boolean | null) => configured === null ? "sin-dato" : configured ? "si" : "no";
 /** Rows of the current run of effective use; semesters without data are skipped, as in classify(). */
 export const activeRun = (record: TeacherToolRecord): Observation[] => record.sustainedPeriods ? record.history.filter(row => row.effective !== null).slice(-record.sustainedPeriods) : [];
+/** Median intensity of the current run (the «valor típico»), or null without data. */
+export function typicalIntensity(record: TeacherToolRecord): number | null {
+  const values = activeRun(record).map(row => row.intensity).filter((v): v is number => v !== null && Number.isFinite(v));
+  return values.length ? median(values) : null;
+}
+
+/** The record's reason in plain words; `record.reason` keeps the exact rule. */
+export function plainReason(record: TeacherToolRecord): string {
+  const { tool, sustainedPeriods: run } = record;
+  const since = formatPeriod(PERIODS[0]);
+  const period = formatPeriod(record.period);
+  const known = record.history.filter(row => row.effective !== null);
+  const typical = typicalIntensity(record);
+  const complete = activeRun(record).every(row => row.intensity !== null && Number.isFinite(row.intensity));
+  const cut = tool.threshold === null ? "" : number(tool.threshold);
+  const configuredBefore = known.filter(row => row.configured === true).length;
+  const missing = record.history.filter(row => row.effective === null).length;
+  const skipped = record.condition || !missing ? "" : missing === 1 ? " Un semestre no tiene dato de uso con estudiantes: no corta ni suma en su historia." : ` ${missing} semestres no tienen dato de uso con estudiantes: no cortan ni suman en su historia.`;
+  const runText = `La ha usado con estudiantes ${plural(run, "semestre seguido", "semestres seguidos")}`;
+  const text: Record<Cause, string> = {
+    configuracion: `De ${tool.name} solo sabemos si está configurada, así que no recibe estado.${COUNTED[tool.id] ? ` ${COUNTED[tool.id]}` : ""}`,
+    "sin-observaciones": "No hay datos de esta herramienta para este profesor.",
+    "falta-dato": `Falta el dato de uso con estudiantes de ${period}, así que no tiene estado.`,
+    historia: "Su historia tiene semestres sin dato o que no se pueden comparar; no tomamos la falta de dato como falta de uso.",
+    inconsistente: "Los datos de configuración y de uso no coinciden.",
+    "no-expuesto": `Ninguno de sus estudiantes la ha usado ${known.length === 1 ? `en ${period}, el único semestre con datos que ha dictado desde ${since}` : `en los ${number(known.length)} semestres que dictó desde ${since}`}.${configuredBefore ? ` La tuvo configurada en ${plural(configuredBefore, "semestre", "semestres")}, sin actividad de estudiantes.` : ""}`,
+    adopta: `${period} es el primer semestre en que sus estudiantes la usan desde ${since}; aún no se sabe si seguirá.`,
+    retomo: "Volvió a usarla después de dejarla. El tablero todavía no tiene un estado para quien la retoma.",
+    apropia: `${runText} y en un semestre típico pone ${number(typical ?? 0)} ${TEXTS.unit}, más que el corte de Apropia (${cut}).`,
+    usa: complete && typical !== null ? `${runText}. En un semestre típico pone ${number(typical)} ${TEXTS.unit}; para Apropia hacen falta más de ${cut}, así que queda en Usa.` : `${runText}; falta un dato de intensidad comparable para saber si llega a Apropia.`,
+    abandona: "La usó con estudiantes 2 o más semestres seguidos y después dejó de usarla. No quiere decir que la dejó para siempre.",
+    ensayo: `La usó con estudiantes, pero nunca 2 semestres seguidos, y en ${period} no la usa. No cuenta como Abandona, que pide haberla usado 2 semestres seguidos.`,
+  };
+  return text[record.cause] + skipped;
+}
 
 /** «n %», or «n de N · pocos profesores» with no ratio (so no bar) when the base is under the source's minimum. */
 export function share(n: number, total: number): { ratio: number | null; text: string } {
-  if (total >= MIN_PROFESSORS) return { ratio: n / total, text: `${Math.round(n / total * 100)} %` };
-  return { ratio: null, text: total ? `${n} de ${total} · pocos profesores` : "—" };
+  // A no-break space keeps «20 %» on one line.
+  if (total >= MIN_PROFESSORS) return { ratio: n / total, text: `${Math.round(n / total * 100)}\u00a0%` };
+  return { ratio: null, text: total ? `${number(n)} de ${number(total)} · pocos profesores` : "—" };
 }
 
 const habitual = new Map(TOOLS.map(tool => {
@@ -134,14 +192,17 @@ const habitual = new Map(TOOLS.map(tool => {
 }));
 /** Share of the tool's validation cases that started to configure it: the reference for its bands. */
 export const habitualRate = (toolId: ToolId): number | null => habitual.get(toolId) ?? null;
-// One decimal under 10 %; bands are decided on this same rounded number.
-const shown = (p: number) => p < 0.001 ? 0 : Math.round(p * 1000) < 100 ? Math.round(p * 1000) / 1000 : Math.round(p * 100) / 100;
+// One decimal under 10 %; bands and the list order use this same rounded number.
+export const shown = (p: number) => p < 0.001 ? 0 : Math.round(p * 1000) < 100 ? Math.round(p * 1000) / 1000 : Math.round(p * 100) / 100;
+export const byCode = (a: TeacherToolRecord, b: TeacherToolRecord) => a.professor.id.localeCompare(b.professor.id);
+/** Highest shown probability first, ties by code, rows without one last (never as 0): the same order in every list. */
+export const byProbability = (a: TeacherToolRecord, b: TeacherToolRecord) => (b.probability === null ? -1 : shown(b.probability)) - (a.probability === null ? -1 : shown(a.probability)) || byCode(a, b);
 /** «42 %», «4,2 %» under 10 % and «menos de 0,1 %» under 0.1 %. */
 export function formatProbability(p: number): string {
-  if (p < 0.001) return "menos de 0,1 %";
+  if (p < 0.001) return "menos de 0,1\u00a0%";
   const value = shown(p);
   const digits = value < 0.1 ? 1 : 0;
-  return `${(value * 100).toLocaleString("es-CO", { minimumFractionDigits: digits, maximumFractionDigits: digits })} %`;
+  return `${(value * 100).toLocaleString("es-CO", { minimumFractionDigits: digits, maximumFractionDigits: digits })}\u00a0%`;
 }
 export function probabilityBandFor(toolId: ToolId, p: number): ProbabilityBand {
   const rate = habitualRate(toolId);
@@ -150,18 +211,19 @@ export function probabilityBandFor(toolId: ToolId, p: number): ProbabilityBand {
 /** The upper band cut exactly as probabilityBandFor applies it: «50 %», or «10,4 %» when it needs the decimal. */
 export function formatDoubleRate(toolId: ToolId): string {
   const cut = 2 * shown(habitualRate(toolId) ?? 0);
-  return `${(cut * 100).toLocaleString("es-CO", { minimumFractionDigits: cut < 0.1 ? 1 : 0, maximumFractionDigits: 1 })} %`;
+  return `${(cut * 100).toLocaleString("es-CO", { minimumFractionDigits: cut < 0.1 ? 1 : 0, maximumFractionDigits: 1 })}\u00a0%`;
 }
 
 const normalized = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("es");
 
 export function getRecords(filters: Partial<Filters> = {}): TeacherToolRecord[] {
-  const { period = "202520", tool = "rubricas", faculty = "Todos", group = "Todos", state = "Todos", probability = "Todas", search = "" } = filters;
+  const { period = "202520", tool = "rubricas", faculty = "Todos", group = "Todos", state = "Todos", probability = "Todas", search = "", configured = "Todos" } = filters;
   const query = normalized(search.trim());
   return (professorsByPeriod.get(period) ?? []).map(professor => getRecord(professor.id, tool, period)).filter(record => {
     if (faculty !== "Todos" && record.faculty !== faculty) return false;
     if (group !== "Todos" && record.originGroup !== group) return false;
     if (state !== "Todos" && record.state !== state) return false;
+    if (configured !== "Todos" && configured !== configuredKey(record.observation.configured)) return false;
     // Name and code only: real names are the code, and the contract type must not match a search.
     if (query && !normalized(`${record.professor.name} ${record.professor.id}`).includes(query)) return false;
     if (probability !== "Todas") {
@@ -191,8 +253,8 @@ export function selectionState(professorId: string, toolId: ToolId, period: Peri
   const at = lastTaughtPeriod(professor, period);
   if (!at) return `no había dictado hasta ${formatPeriod(period)}`;
   const record = getRecord(professorId, toolId, at);
-  if (record.tool.evidence === "configuracion") return `solo configuración: ${configuredLabel(record.observation.configured)} en ${formatPeriod(at)}`;
-  return at === period ? stateLabel(record) : `${stateLabel(record)} (último semestre dictado: ${formatPeriod(at)})`;
+  if (record.tool.evidence === "configuracion") return `configurada en ${formatPeriod(at)}: ${configuredLabel(record.observation.configured)}`;
+  return at === period ? plainLabel(record) : `${plainLabel(record)} (último semestre dictado: ${formatPeriod(at)})`;
 }
 
 /** RFC-style quoted cells, semicolon separator, UTF-8 BOM and spreadsheet safety. */
@@ -203,12 +265,14 @@ function csvCell(value: string): string {
 }
 
 export function exportSelectionCsv(selection: Selection, period: PeriodId = "202520"): string {
-  const header = ["Profesor", "Código", "Facultad", "Herramientas", "Talleres", "Periodo de consulta", "Estados por herramienta", "Criterio", "Fuente"];
+  // Probability, group, guidance and state reason stay out until Conecta-TE approves them (phase 4).
+  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente"];
   // Professors in code order and tools in their fixed order, as the call dialog lists them.
   const rows = PROFESSORS.flatMap(professor => {
     const tools = TOOLS.filter(tool => selection[professor.id]?.includes(tool.id));
     if (!tools.length) return [];
-    return [[professor.name, professor.id, facultyAt(professor, period), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), "Selección manual para revisión de pertinencia", TEXTS.csv]];
+    const faculty = facultyAt(professor, period);
+    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), "Elegido a mano en el tablero; falta confirmar con el profesor que el taller le sirve", TEXTS.csv]];
   });
   return `﻿${[header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
 }

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FACULTIES, GROUPS, OBSERVATIONS, PERIODS, PROFESSORS, TOOLS, VALIDATION_ROWS } from "../src/lib/data";
-import { activeRun, classify, exportSelectionCsv, formatPeriod, formatProbability, getRecord, getRecords, probabilityBandFor, share, stateLabel, summarize } from "../src/lib/domain";
+import { activeRun, classify, exportSelectionCsv, formatPeriod, formatProbability, getRecord, getRecords, plainReason, probabilityBandFor, share, stateLabel, summarize } from "../src/lib/domain";
 import type { Observation } from "../src/lib/types";
 
 const tool = TOOLS.find(item => item.id === "rubricas")!;
@@ -139,10 +139,10 @@ test("CSV exports one row per professor, deduplicates tools, preserves accents a
     assert.ok(csv.startsWith("\uFEFF"));
     const rows = csv.slice(1).trim().split("\r\n");
     assert.equal(rows.length, 2);
-    assert.ok(rows[0].includes('"Profesor";"Código";"Facultad"'));
+    assert.ok(rows[0].includes('"Profesor (código seudónimo)";"Código";"Facultad";"Nombre de la facultad"'));
     assert.ok(rows[1].startsWith('"\'=HYPERLINK(""x"";""y"")";'));
     assert.ok(rows[1].includes('"Rúbricas | Debates";'), "selected tools are deduplicated in their own column");
-    assert.ok(rows[0].includes('"Periodo de consulta";"Estados por herramienta";"Criterio"'));
+    assert.ok(rows[0].includes('"Semestre consultado";"Estados por herramienta";"Criterio"'));
     assert.ok(rows[1].includes('"2025-2";'));
     assert.ok(rows[1].includes("Datos sintéticos"));
     assert.ok(!csv.includes("unknown"));
@@ -179,11 +179,11 @@ test("a missing semester gets no state but does not cut the run, and each Sin in
 });
 
 test("probabilities are shown with one decimal under 10 % and bands use the shown number", () => {
-  assert.equal(formatProbability(0.42), "42 %");
-  assert.equal(formatProbability(0.042), "4,2 %");
-  assert.equal(formatProbability(0.0996), "10 %");
-  assert.equal(formatProbability(0.001), "0,1 %");
-  assert.equal(formatProbability(0.0004), "menos de 0,1 %");
+  assert.equal(formatProbability(0.42), "42\u00a0%");
+  assert.equal(formatProbability(0.042), "4,2\u00a0%");
+  assert.equal(formatProbability(0.0996), "10\u00a0%");
+  assert.equal(formatProbability(0.001), "0,1\u00a0%");
+  assert.equal(formatProbability(0.0004), "menos de 0,1\u00a0%");
   // Juan's synthetic 35 / 65 cuts, applied to the rounded value the table shows.
   assert.equal(probabilityBandFor("rubricas", 0.6496), "Alta");
   assert.equal(probabilityBandFor("rubricas", 0.3449), "Baja");
@@ -194,7 +194,20 @@ test("probabilities are shown with one decimal under 10 % and bands use the show
 });
 
 test("percentages need at least 30 professors in the base", () => {
-  assert.deepEqual(share(12, 40), { ratio: 0.3, text: "30 %" });
+  assert.deepEqual(share(12, 40), { ratio: 0.3, text: "30\u00a0%" });
   assert.deepEqual(share(3, 29), { ratio: null, text: "3 de 29 · pocos profesores" });
   assert.deepEqual(share(0, 0), { ratio: null, text: "—" });
+});
+
+test("plain reasons follow the branch that decided the state, and the configured filter splits sí, no and sin dato", () => {
+  assert.equal(classify(history([false, true, false]), tool).cause, "ensayo");
+  assert.equal(classify(history([true, true, false, true]), tool).cause, "retomo");
+  const records = TOOLS.flatMap(item => getRecords({ tool: item.id }));
+  const reason = (cause: string) => plainReason(records.find(record => record.cause === cause)!);
+  assert.match(reason("ensayo"), /nunca 2 semestres seguidos/);
+  assert.match(reason("retomo"), /Volvió a usarla después de dejarla/);
+  assert.match(reason("no-expuesto"), new RegExp(`desde ${formatPeriod(PERIODS[0])}`));
+  const parts = (["si", "no", "sin-dato"] as const).map(configured => getRecords({ configured }).length);
+  assert.ok(parts.every(n => n > 0));
+  assert.equal(parts.reduce((sum, n) => sum + n, 0), getRecords().length);
 });

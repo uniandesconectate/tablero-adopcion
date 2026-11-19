@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
-import { MIN_PROFESSORS, TEXTS } from "@/lib/data";
-import { formatPeriod, formatProbability, share } from "@/lib/domain";
-import { CONDITION_LABELS, STATES, type AdoptionState, type Condition, type PeriodId, type TeacherToolRecord } from "@/lib/types";
+import { MIN_PROFESSORS, PERIODS, TEXTS } from "@/lib/data";
+import { GUIDANCE, formatDoubleRate, formatPeriod, formatProbability, habitualRate, number, plural, share } from "@/lib/domain";
+import { CASE_LABELS, STATES, type AdoptionState, type Condition, type PeriodId, type ProbabilityBand, type TeacherToolRecord, type Tool, type ToolId } from "@/lib/types";
+
+export { number, plural };
 
 const paths: Record<string, ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></>,
@@ -34,10 +36,42 @@ const paths: Record<string, ReactNode> = {
 export function Icon({ name, size = 19 }: { name: string; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name] ?? paths.arrow}</svg>;
 }
-export const pct = (n: number, total: number) => total ? `${Math.round(n / total * 100)} %` : "—";
-export const number = (n: number) => new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 }).format(n);
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+export const pct = (n: number, total: number) => total ? `${Math.round(n / total * 100)}\u00a0%` : "—";
 export const fewNote = `Con menos de ${MIN_PROFESSORS} profesores no se muestran porcentaje ni barra: pocos profesores.`;
+/** First semester with data: «nunca» on screen always means «desde» this one. */
+export const SINCE = formatPeriod(PERIODS[0]);
+// The forecast target is the held-out semester; the synthetic demo has none.
+export const TARGET = TEXTS.cleanTest;
+export const nextTerm = TARGET ? `en ${formatPeriod(TARGET)}` : "el semestre siguiente";
+/** Short phrase that goes next to each state name everywhere. */
+export const STATE_SHORT: Record<AdoptionState, string> = {
+  Adopta: `la usa por primera vez desde ${SINCE}`,
+  Usa: "la usa semestre tras semestre",
+  Apropia: "la usa seguido y con más contenido que 3 de cada 4 semestres de uso",
+  "No expuesto": `no la ha usado con estudiantes desde ${SINCE}`,
+  Abandona: "la dejó; puede retomarla",
+  "Sin información": "probó y no siguió, la retomó o falta información",
+};
+/** Plain definition of each state. */
+export const STATE_PLAIN: Record<AdoptionState, string> = {
+  Adopta: `Es el primer semestre en que sus estudiantes la usan desde ${SINCE}; aún no se sabe si seguirá.`,
+  Usa: "Sus estudiantes la usan 2 o más semestres seguidos.",
+  Apropia: "La usa semestre tras semestre y pone más contenido por aula que 3 de cada 4 semestres de uso de todos los profesores.",
+  "No expuesto": `Ninguno de sus estudiantes la ha usado desde ${SINCE}. Puede haberla tenido configurada.`,
+  Abandona: "La usó 2 o más semestres seguidos y después dejó de usarla. Puede retomarla.",
+  "Sin información": "No tiene uno de los 5 estados.",
+};
+/** «Taller sugerido» carries one provisional mark: the name's own, or this one. */
+export const workshopNote = (tool: Tool) => tool.workshop.includes("provisional") ? "" : "Sugerencia inicial, pendiente de aprobación de Conecta-TE.";
+/** «30 % o más», «de 15 % a menos de 30 %»…; the synthetic demo has fixed cuts in its labels. */
+export function bandRange(toolId: ToolId, band: ProbabilityBand): string {
+  const habitual = habitualRate(toolId);
+  if (!TEXTS.relativeBands || habitual === null) return TEXTS.bands[band];
+  return { Baja: `menos de ${formatProbability(habitual)}`, Media: `de ${formatProbability(habitual)} a menos de ${formatDoubleRate(toolId)}`, Alta: `${formatDoubleRate(toolId)} o más` }[band];
+}
+// A tool without a habitual rate has no relative cut to show next to the band name.
+export const bandText = (toolId: ToolId, band: ProbabilityBand) => TEXTS.relativeBands && habitualRate(toolId) !== null ? `${TEXTS.bands[band]} (${bandRange(toolId, band)})` : TEXTS.bands[band];
+/** Framework definitions, kept for the guide. */
 export const stateDescriptions: Record<AdoptionState, string> = {
   "No expuesto": "Sin uso efectivo en la historia observada.",
   Adopta: "Primer uso efectivo; la continuidad está por confirmar.",
@@ -47,12 +81,15 @@ export const stateDescriptions: Record<AdoptionState, string> = {
   "Sin información": "La evidencia o la regla no permiten asignar un estado.",
 };
 export const conditionDescriptions: Record<Condition, string> = {
-  regla: "Probó la herramienta un semestre y no siguió, o la retomó después de dejarla: el marco todavía no tiene un estado para estos casos.",
+  regla: "La usó con estudiantes pero nunca 2 semestres seguidos y hoy no la usa, o la retomó después de dejarla: el dato existe, pero el marco todavía no tiene una regla para estos casos.",
   dato: "Falta el dato de uso con estudiantes de ese semestre, o la historia no se puede comparar.",
   configuracion: "De esta herramienta solo se sabe si está configurada, no si sus estudiantes la usan.",
 };
 export function StateBadge({ state, label = state }: { state: AdoptionState; label?: string }) {
   return <span className="state-badge" data-state={state}><span className="state-dot" data-state={state}/>{label}</span>;
+}
+export function PersonIcon({ initials }: { initials: string }) {
+  return <span className="avatar" aria-hidden="true">{initials}</span>;
 }
 export function SectionHeading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
   return <div className="panel-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2 className="section-title">{title}</h2>{description && <p className="section-description">{description}</p>}</div>{action}</div>;
@@ -62,10 +99,10 @@ export function Metric({ label, value, detail, icon }: { label: string; value: R
 }
 // Real forecasts exist only at their origin period; elsewhere an empty list would read as "nobody".
 export const offOrigin = (period: PeriodId) => TEXTS.forecastOrigin !== null && period !== TEXTS.forecastOrigin;
-export function OffOrigin({ period, onGo }: { period: PeriodId; onGo: (period: PeriodId) => void }) {
+export function OffOrigin({ period, onGo, extra }: { period: PeriodId; onGo: (period: PeriodId) => void; extra?: ReactNode }) {
   const origin = TEXTS.forecastOrigin;
   if (!origin || period === origin) return null;
-  return <EmptyState title={`Solo hay pronóstico con origen ${formatPeriod(origin)}`} description={`El modelo estima, desde ${formatPeriod(origin)}, quién empezará a configurar cada herramienta la próxima vez que dicte. En ${formatPeriod(period)} no hay pronóstico.`} action={<button className="button button-secondary" onClick={() => onGo(origin)}>Ver {formatPeriod(origin)}</button>}/>;
+  return <EmptyState title={`Solo hay pronóstico con datos de ${formatPeriod(origin)}`} description={`El pronóstico estima, con datos de ${formatPeriod(origin)}, quién configurará cada herramienta la próxima vez que dicte${TARGET ? ` (${formatPeriod(TARGET)})` : ""}. Para ${formatPeriod(period)} no hay pronóstico.`} action={<div className="heading-links"><button className="button button-secondary" onClick={() => onGo(origin)}>Ver {formatPeriod(origin)}</button>{extra}</div>}/>;
 }
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
@@ -73,24 +110,30 @@ export function EmptyState({ title, description, action }: { title: string; desc
 }
 export function StateBars({ records, onSelect, compact = false }: { records: TeacherToolRecord[]; onSelect?: (state: AdoptionState) => void; compact?: boolean }) {
   const evaluated = records.filter(r => r.state !== "Sin información").length;
+  const count = (states: readonly AdoptionState[]) => records.filter(r => states.includes(r.state)).length;
   // Each case without a framework state keeps its own count, outside the percentages.
-  const cases = (Object.keys(CONDITION_LABELS) as Condition[]).map(c => [c, records.filter(r => r.condition === c).length] as const).filter(([, n]) => n);
-  return <div className={`bar-list ${compact ? "is-compact" : ""}`}>
+  const cases = (["regla", "dato"] as Condition[]).map(c => [c, records.filter(r => r.condition === c).length] as const);
+  const subtotal = (title: string, states: readonly AdoptionState[]) => { const n = count(states); const part = share(n, evaluated); return <p className="state-group">{title} · {number(n)} de los {number(evaluated)} con uno de los 5 estados{part.ratio !== null ? ` (${part.text})` : ""}</p>; };
+  return <div className={`bar-list ${compact ? "is-compact" : "state-bars"}`}>
     {STATES.map(state => {
-      const count = records.filter(r => r.state === state).length;
-      const part = share(count, evaluated);
+      const n = count([state]);
+      const part = share(n, evaluated);
       const firstTime = state === "Adopta" || state === "No expuesto" ? records.filter(r => r.state === state && r.taughtSemesters === 1).length : 0;
-      const content = <><span className="bar-label"><span className="state-dot" data-state={state}/>{state}</span><span className="bar-track"><span className="bar-fill" data-state={state} style={{ "--bar-width": `${(part.ratio ?? 0) * 100}%` } as CSSProperties}/></span><span className="bar-value">{count}<span>{part.ratio === null && evaluated ? `de ${evaluated}` : part.text}</span></span>{firstTime > 0 && <span className="bar-detail">{plural(firstTime, "dicta", "dictan")} por primera vez</span>}</>;
-      return onSelect ? <button className="bar-row" key={state} data-state={state} onClick={() => onSelect(state)} aria-label={`${state}: ${count} de ${evaluated} profesores. Ver lista`}>{content}</button> : <div className="bar-row" key={state} data-state={state}>{content}</div>;
+      const content = <><span className="bar-label"><span className="state-dot" data-state={state}/><span>{state}{!compact && <small>{STATE_SHORT[state]}</small>}</span></span><span className="bar-track"><span className="bar-fill" data-state={state} style={{ "--bar-width": `${(part.ratio ?? 0) * 100}%` } as CSSProperties}/></span><span className="bar-value">{number(n)}<span>{part.ratio === null && evaluated ? `de ${number(evaluated)}` : part.text}</span></span>{!compact && <span className="bar-detail">Qué conversar: {GUIDANCE[state]}{firstTime > 0 ? ` · ${plural(firstTime, "dicta", "dictan")} por primera vez en los datos (desde ${SINCE})` : ""}</span>}{compact && firstTime > 0 && <span className="bar-detail">{plural(firstTime, "dicta", "dictan")} por primera vez en los datos (desde {SINCE})</span>}</>;
+      const row = onSelect ? <button className="bar-row" key={state} data-state={state} onClick={() => onSelect(state)} aria-label={`${state}: ${number(n)} de ${number(evaluated)} profesores${part.ratio !== null ? ` (${part.text})` : ""}. Ver lista`}>{content}</button> : <div className="bar-row" key={state} data-state={state}>{content}</div>;
+      return !compact && state === "Adopta" ? <div key={state} className="state-group-wrap">{subtotal("Ya la usan con estudiantes", ["Adopta", "Usa", "Apropia"])}{row}</div> : !compact && state === "No expuesto" ? <div key={state} className="state-group-wrap">{subtotal("No la usan ahora", ["No expuesto", "Abandona"])}{row}</div> : row;
     })}
-    <p className="bar-detail">{plural(evaluated, "profesor evaluable", "profesores evaluables")}{cases.map(([c, n]) => ` · ${CONDITION_LABELS[c]}: ${n}`).join("")}{evaluated > 0 && evaluated < MIN_PROFESSORS ? ` · ${fewNote}` : ""}</p>
+    <p className="bar-detail">{compact
+      ? `${plural(evaluated, "profesor clasificado", "profesores clasificados")} (con uno de los 5 estados)${cases.map(([c, n]) => n ? ` · ${CASE_LABELS[c]}: ${number(n)}` : "").join("")}`
+      : `Los porcentajes se calculan sobre ${plural(evaluated, "profesor", "profesores")} con uno de los 5 estados${records[0] ? ` en ${records[0].tool.name}` : ""}. Sin estado: ${number(cases[0][1])} «${CASE_LABELS.regla}» (la usaron sin llegar a 2 semestres seguidos, o la retomaron después de dejarla; algunos la usan hoy) y ${number(cases[1][1])} «${CASE_LABELS.dato}». ${number(evaluated)} + ${number(cases[0][1])} + ${number(cases[1][1])} = ${number(records.length)}.`}{evaluated > 0 && evaluated < MIN_PROFESSORS ? ` ${fewNote}` : ""}</p>
   </div>;
 }
-export function Probability({ value, missing = "Sin estimación" }: { value: number | null; missing?: string }) {
+/** `habitual` draws a thin mark at the tool's habitual rate. */
+export function Probability({ value, missing = "Sin estimación (no es 0 %)", habitual = null }: { value: number | null; missing?: string; habitual?: number | null }) {
   if (value === null) return <span className="muted small">{missing}</span>;
-  return <div className="probability-cell"><span>{formatProbability(value)}</span><span className="probability-track"><span style={{width:`${value * 100}%`}}/></span></div>;
+  return <div className="probability-cell"><span>{formatProbability(value)}</span><span className="probability-track">{habitual !== null && <i style={{ left: `${habitual * 100}%` }}/>}<span style={{width:`${value * 100}%`}}/></span></div>;
 }
-export function Dialog({ title, eyebrow, children, footer, onClose, wide = false }: { title: string; eyebrow?: string; children: ReactNode; footer?: ReactNode; onClose: () => void; wide?: boolean }) {
+export function Dialog({ title, eyebrow, children, footer, onClose, wide = false }: { title: string; eyebrow?: ReactNode; children: ReactNode; footer?: ReactNode; onClose: () => void; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
