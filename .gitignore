@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+test-results/
+playwright-report/
+.artifacts/
+*.tsbuildinfo
+next-env.d.ts
+# Datos reales de profesores (los escribe exportar_tablero.py): nunca se versionan.
+datos/real/
+# Compilación estática para GitHub Pages
+out/
+# Archivos locales de pnpm (el repositorio usa npm)
+pnpm-lock.yaml
+pnpm-workspace.yaml

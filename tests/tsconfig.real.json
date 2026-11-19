@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "paths": { "@/*": ["../src/*"], "@fuente": ["../src/lib/real.ts"], "@datos-reales": ["./fixtures/tablero-ejemplo.json"] }
+  }
+}

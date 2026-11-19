@@ -1,0 +1,313 @@
+{
+  "contrato": "tablero-adopcion/v2",
+  "fuente": {
+    "tipo": "real",
+    "etiqueta": "Datos reales de Brightspace · uso interno",
+    "generado": "2026-11-16",
+    "generador": "Experimento clustering/exportar_tablero.py",
+    "modelo": {
+      "nombre": "Markov con variables ajustado + modelo directo de herramientas (notebook 05)",
+      "version": "05-2026-11-16",
+      "entrenado_hasta": "202520",
+      "origen": "202520",
+      "destino": "202610",
+      "supuestos": ["Se predice desde lo que cada docente configuró en 202520.", "Se supone que vuelve a dictar el semestre siguiente (salto 1); 202610 no se consulta."],
+      "metricas_validacion": {
+        "Brier macro (herramientas)": 0.1234,
+        "oportunidades de validación": 6
+      },
+      "metricas_externas": {
+        "Brier macro (externas)": 0.0456,
+        "oportunidades de validación": 3,
+        "externas": ["LockDown", "Turnitin", "Padlet"]
+      }
+    },
+    "reglas": {
+      "uso_efectivo": "Uso efectivo: la herramienta está configurada en al menos un aula y al menos un estudiante tuvo actividad en ella. Si no hay estudiantes con dato medible, queda sin información.",
+      "intensidad": "objetos por aula",
+      "corte_apropia": "Apropia, corte provisional: la mediana de objetos por aula de su tramo activo supera el percentil 75 de quienes usan la herramienta con estudiantes (202120 a 202520). Debe validarse con Conecta-TE.",
+      "periodos_seguidos": 2,
+      "seguidos": "Seguidos quiere decir semestres en los que el profesor dicta seguidos; un semestre sin dictar no corta ni cuenta.",
+      "consultable_desde": "202220",
+      "minimo_profesores": 30
+    },
+    "vuelven_siguiente": 0.8
+  },
+  "periodos": ["202120", "202210", "202220", "202310", "202320", "202410", "202420", "202510", "202520"],
+  "pronostico": {
+    "origen": "202520",
+    "destino": "202610",
+    "horizonte": "la próxima vez que dicte (se supone el semestre siguiente)"
+  },
+  "herramientas": [
+    {
+      "id": "contenidos",
+      "nombre": "Contenidos",
+      "tipo": "interna",
+      "evidencia": "uso",
+      "descripcion": "Materiales y recursos del aula virtual.",
+      "taller": "Organizar materiales y recursos",
+      "umbral": 48,
+      "pronostico": true
+    },
+    {
+      "id": "actividades",
+      "nombre": "Actividades",
+      "tipo": "interna",
+      "evidencia": "uso",
+      "descripcion": "Actividades con entrega de trabajos.",
+      "taller": "Diseñar actividades con entregas",
+      "umbral": 11.2,
+      "pronostico": true
+    },
+    {
+      "id": "anuncios",
+      "nombre": "Anuncios",
+      "tipo": "interna",
+      "evidencia": "configuracion",
+      "descripcion": "Comunicaciones y orientación para el curso.",
+      "taller": "Comunicar y orientar en el aula",
+      "umbral": null,
+      "pronostico": true
+    },
+    {
+      "id": "calificaciones",
+      "nombre": "Calificaciones",
+      "tipo": "interna",
+      "evidencia": "uso",
+      "descripcion": "Organización de la evaluación y sus resultados.",
+      "taller": "Organizar el libro de calificaciones",
+      "umbral": 9,
+      "pronostico": true
+    },
+    {
+      "id": "cuestionarios",
+      "nombre": "Cuestionarios",
+      "tipo": "interna",
+      "evidencia": "uso",
+      "descripcion": "Preguntas y evaluaciones configuradas en la plataforma.",
+      "taller": "Diseñar cuestionarios",
+      "umbral": 9,
+      "pronostico": true
+    },
+    {
+      "id": "rubricas",
+      "nombre": "Rúbricas",
+      "tipo": "interna",
+      "evidencia": "uso",
+      "descripcion": "Criterios explícitos para evaluar y retroalimentar.",
+      "taller": "Evaluar y retroalimentar con rúbricas",
+      "umbral": 7,
+      "pronostico": true
+    },
+    {
+      "id": "debates",
+      "nombre": "Debates",
+      "tipo": "interna",
+      "evidencia": "uso",
+      "descripcion": "Conversaciones y actividades de discusión.",
+      "taller": "Facilitar debates y participación",
+      "umbral": 4.5,
+      "pronostico": true
+    },
+    {
+      "id": "lockdown",
+      "nombre": "LockDown",
+      "tipo": "externa",
+      "evidencia": "configuracion",
+      "descripcion": "Navegador que bloquea el equipo durante cuestionarios en línea.",
+      "taller": "Evaluaciones en línea con LockDown (taller provisional)",
+      "umbral": null,
+      "pronostico": true
+    },
+    {
+      "id": "turnitin",
+      "nombre": "Turnitin",
+      "tipo": "externa",
+      "evidencia": "configuracion",
+      "descripcion": "Revisión de similitud en las entregas de trabajos.",
+      "taller": "Revisar originalidad con Turnitin (taller provisional)",
+      "umbral": null,
+      "pronostico": true
+    },
+    {
+      "id": "padlet",
+      "nombre": "Padlet",
+      "tipo": "externa",
+      "evidencia": "configuracion",
+      "descripcion": "Muros colaborativos para los aportes de los estudiantes.",
+      "taller": "Colaborar con Padlet (taller provisional)",
+      "umbral": null,
+      "pronostico": true
+    },
+    {
+      "id": "genially",
+      "nombre": "Genially",
+      "tipo": "externa",
+      "evidencia": "configuracion",
+      "descripcion": "Presentaciones y recursos interactivos.",
+      "taller": "Crear recursos interactivos con Genially (taller provisional)",
+      "umbral": null,
+      "pronostico": true
+    },
+    {
+      "id": "voicethread",
+      "nombre": "VoiceThread",
+      "tipo": "externa",
+      "evidencia": "configuracion",
+      "descripcion": "Conversaciones con voz y video sobre los materiales.",
+      "taller": "Conversar con VoiceThread (taller provisional)",
+      "umbral": null,
+      "pronostico": true
+    },
+    {
+      "id": "feedbackfruits",
+      "nombre": "FeedbackFruits",
+      "tipo": "externa",
+      "evidencia": "configuracion",
+      "descripcion": "Revisión entre pares y comentarios sobre las entregas.",
+      "taller": "Retroalimentar con FeedbackFruits (taller provisional)",
+      "umbral": null,
+      "pronostico": false
+    }
+  ],
+  "grupos": [
+    {
+      "id": "C0",
+      "nombre": "C0 · Evalúa con cuestionarios y calificaciones, sin rúbricas",
+      "descripcion": "Perfil K5 de Lina: evalúa con cuestionarios y calificaciones, sin rúbricas. Es un grupo nominal: no es un nivel ni una calificación."
+    },
+    {
+      "id": "C1",
+      "nombre": "C1 · El más completo: rúbricas, cuestionarios y debates",
+      "descripcion": "Perfil K5 de Lina: el más completo: rúbricas, cuestionarios y debates. Es un grupo nominal: no es un nivel ni una calificación."
+    },
+    {
+      "id": "C2",
+      "nombre": "C2 · Aula casi vacía",
+      "descripcion": "Perfil K5 de Lina: aula casi vacía. Es un grupo nominal: no es un nivel ni una calificación."
+    },
+    {
+      "id": "C3",
+      "nombre": "C3 · Básico: contenidos, actividades y anuncios, poca evaluación",
+      "descripcion": "Perfil K5 de Lina: básico: contenidos, actividades y anuncios, poca evaluación. Es un grupo nominal: no es un nivel ni una calificación."
+    },
+    {
+      "id": "C4",
+      "nombre": "C4 · Rúbricas y evaluación media",
+      "descripcion": "Perfil K5 de Lina: rúbricas y evaluación media. Es un grupo nominal: no es un nivel ni una calificación."
+    }
+  ],
+  "profesores": {
+    "id": ["D-0a1b2c3d", "D-3f4e5d6c", "D-7a8b9c0d", "D-c1d2e3f4"],
+    "facultad": ["Ingeniería", "Ciencias", "Artes y Humanidades", null],
+    "contrato": ["Planta", "Cátedra", null, "Planta"]
+  },
+  "filas": {
+    "profesor": [0, 1, 3, 0, 1, 3, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 0, 2, 3, 0, 2, 0, 1, 2, 0, 1, 2],
+    "periodo": [8, 8, 8, 7, 7, 7, 6, 6, 6, 5, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 1, 1, 1, 0, 0, 0],
+    "grupo": ["C3", "C0", "C4", "C2", "C4", "C3", "C1", "C3", "C0", "C0", "C2", "C4", "C1", "C4", "C1", "C3", "C3", "C2", "C4", "C2", "C1", "C1", "C3", "C0", "C0", "C2", "C4"],
+    "facultad": ["Ingeniería", "Ciencias", null, "Ingeniería", "Ciencias", "Educación", "Ingeniería", "Ciencias", "Artes y Humanidades", "Ingeniería", "Ciencias", "Artes y Humanidades", "Educación", "Ingeniería", "Ingeniería", "Artes y Humanidades", "Ingeniería", "Artes y Humanidades", "Educación", "Ingeniería", "Artes y Humanidades", "Ingeniería", "Ingeniería", "Artes y Humanidades", "Ingeniería", "Ingeniería", "Artes y Humanidades"],
+    "compartidas": [0, 1, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  },
+  "uso": {
+    "contenidos": {
+      "configurada": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "efectiva": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, null, 1, null],
+      "alcance": [0.59, 0.66, 0.8, 0.56, 0.63, 0.77, 0.53, 0.6, 0.67, 0.5, 0.57, 0.64, 0.71, 0.47, 0.54, 0.61, 0.44, 0.58, 0.65, 0.41, 0.55, 0.38, 0.45, 0.52, null, 0.42, null],
+      "intensidad": [57, 32, 24, 56, 31, 23, 55, 30, 41, 57, 32, 43, 24, 56, 31, 42, 55, 41, 22, 57, 43, 56, 31, 42, 55, 30, 41]
+    },
+    "actividades": {
+      "configurada": [1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1],
+      "efectiva": [0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1],
+      "alcance": [0, 0, 0.8, 0, 0, 0.77, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.58, 0, 0, 0.55, 0, 0, 0.52, 0, 0, 0.49],
+      "intensidad": [5, 0, 11, 4, 0, 10, 3, 0, 0, 5, 0, 0, 0, 4, 0, 0, 3, 12.5, 0, 5, 14.5, 4, 0, 13.5, 3, 0, 12.5]
+    },
+    "anuncios": {
+      "configurada": [1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [6.5, 0, 0, 7.5, 7.5, 7.5, 6.5, 6.5, 6.5, 7.5, 7.5, 7.5, 7.5, 6.5, 6.5, 6.5, 7.5, 7.5, 7.5, 6.5, 6.5, 7.5, 7.5, 7.5, 6.5, 6.5, 6.5]
+    },
+    "calificaciones": {
+      "configurada": [1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0],
+      "efectiva": [1, 1, 0, 1, 1, 0, 1, 1, 0, null, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0],
+      "alcance": [0.59, 0.66, 0, 0.56, 0.63, 0, 0.53, 0.6, 0, null, 0.57, 0, 0, 0.47, 0.54, 0, 0.44, 0, 0, 0.41, 0, 0.38, 0.45, 0, 0.35, 0.42, 0],
+      "intensidad": [10, 12, 0, 9, 11, 0, 8, 10, 0, 10, 12, 0, 0, 9, 11, 0, 8, 0, 0, 10, 0, 9, 11, 0, 8, 10, 0]
+    },
+    "cuestionarios": {
+      "configurada": [1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "efectiva": [1, null, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "alcance": [0.59, null, 0, 0.56, 0.63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "intensidad": [2, 2, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    "rubricas": {
+      "configurada": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+      "efectiva": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+      "alcance": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.58, 0, 0, 0.55, 0, 0, 0, 0, 0, 0],
+      "intensidad": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 8, 0, 0, 0, 0, 0, 0]
+    },
+    "debates": {
+      "configurada": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "efectiva": [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "alcance": [0, 0, 0, 0, 0, 0, 0.53, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "intensidad": [0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    "lockdown": {
+      "configurada": [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null, null, null, null, null, null, null],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    },
+    "turnitin": {
+      "configurada": [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    },
+    "padlet": {
+      "configurada": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, null, null, null, null, null, null, null, null, null, null, null],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    },
+    "genially": {
+      "configurada": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    },
+    "voicethread": {
+      "configurada": [null, null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    },
+    "feedbackfruits": {
+      "configurada": [1, 0, 0, 1, 0, 0, 0, 0, 1, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "efectiva": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "alcance": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+      "intensidad": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]
+    }
+  },
+  "pronosticos": {
+    "profesor": [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+    "herramienta": [5, 6, 9, 10, 1, 2, 5, 6, 7, 8, 9, 10, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "prob": [0.42, 0.16, 0.05, 0.03, 0.35, 0.47, 0.18, 0.12, 0.04, 0.22, 0.06, 0.02, 0.55, 0.61, 0.27, 0.31, 0.09, 0.07, 0.15, 0.04, 0.05],
+    "razon": ["No la ha configurado en los semestres anteriores (desde 2020-2).", "La configuró en 1 semestre anterior (desde 2020-2).", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes.", "No la ha configurado en los semestres anteriores (desde 2020-2).", "La configuró en 6 semestres anteriores (desde 2020-2).", "No la ha configurado en los semestres anteriores (desde 2020-2).", "No la ha configurado en los semestres anteriores (desde 2020-2).", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes.", "La configuró en 3 semestres anteriores (desde 2020-2).", "No la ha configurado en los semestres anteriores (desde 2020-2).", "No la ha configurado en los semestres anteriores (desde 2020-2).", "No la ha configurado en los semestres anteriores (desde 2020-2).", "No la ha configurado en los semestres anteriores (desde 2020-2).", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes.", "No la ha tenido en sus aulas antes."]
+  },
+  "perfil_siguiente": {
+    "profesor": [0, 1, 3],
+    "prob": [
+      [0.62, 0.21, 0.02, 0.1, 0.05],
+      [0.18, 0.04, 0.11, 0.55, 0.12],
+      [0.07, 0.01, 0.3, 0.52, 0.1]
+    ]
+  },
+  "validacion": {
+    "herramienta": [0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 10, 10, 11, 11],
+    "llegada": ["202510", "202520", "202510", "202520", "202520", "202520", "202520", "202510", "202510", "202520", "202510", "202520", "202510", "202520", "202520", "202510", "202520", "202520", "202510", "202510", "202520", "202520", "202510", "202520", "202510", "202520", "202510", "202510", "202520", "202520", "202510"],
+    "prob": [0.7, 0.6, 0.3, 0.2, 0.25, 0.1, 0.47, 0.3, 0.4, 0.3, 0.58, 0.2, 0.33, 0.41, 0.2, 0.1, 0.15, 0.12, 0.2, 0.06, 0.1, 0.21, 0.3, 0.04, 0.05, 0.03, 0.02, 0.04, 0.01, 0.004, 0.0004],
+    "empezo": [1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0]
+  }
+}
