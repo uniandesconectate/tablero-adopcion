@@ -925,7 +925,7 @@ tr[data-tied] { background: #fbf1d4; }
   .context-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); color: var(--ink); font-size: 13px; font-weight: 550; text-align: left; }
   .context-toggle > span:first-of-type { flex: 1; min-width: 0; }
   .context-toggle-action { color: #3c5844; font-size: 12px; text-decoration: underline; text-decoration-color: #9ba993; text-underline-offset: 3px; }
-  .global-filters-label { display: none; }
+  .global-filters:not(.is-open) .global-filters-label { display: none; }
   .global-filters:not(.is-open) > .field, .global-filters:not(.is-open) .workshop-line > details { display: none; }
   .global-filters { padding-bottom: 14px; margin-bottom: 18px; }
   .list-row { flex-wrap: wrap; align-items: flex-start; }

@@ -547,6 +547,7 @@ test("en el Resumen, las listas se ven primero: caben con su botón en la primer
   // On a phone «Qué estás mirando» is one line; «Cambiar» opens the same selectors.
   await page.getByRole("button", { name: /^Rúbricas · .*Cambiar$/ }).click();
   await expect(page.getByRole("combobox", { name: "Herramienta", exact: true })).toBeVisible();
+  await expect(page.locator(".global-filters-label")).toBeVisible();
 });
 
 test("la franja de pasos dice cuántos van marcados y su paso 3 abre la convocatoria", async ({ page }) => {
