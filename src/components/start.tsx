@@ -7,25 +7,31 @@ import Dashboard from "./dashboard";
 import { Icon } from "./ui";
 
 const PREFIX = "Datos reales (tablero.json): ";
-/** Plain reason why a file is not a valid tablero.json. */
-const reason = (error: unknown) => error instanceof SyntaxError ? "no es un archivo JSON, que es el formato de tablero.json."
+/** Plain reason why a file is not a valid tablero.json; `text` tells an empty or cut download from another kind of file. */
+const reason = (error: unknown, text: string) => error instanceof SyntaxError ? !text.trim() ? "está vacío. Descárgalo de nuevo."
+  : text.trimStart().startsWith("{") ? "está cortado o dañado: parece que la descarga no terminó. Descárgalo de nuevo."
+  : "su contenido no es el de un tablero.json. Revisa que sea el archivo correcto."
   : error instanceof Error && error.message.startsWith(PREFIX) ? error.message.slice(PREFIX.length)
   : "no tiene la estructura de tablero.json.";
 
 /** The app opens here: nothing is shown until a valid tablero.json is opened, and the file is kept only in this tab. */
 export default function Start() {
   const [open, setOpen] = useState(false);
+  // After «Cambiar archivo» the previous file stays loaded, so a mistaken tap can go back.
+  const [loaded, setLoaded] = useState(false);
   const [reading, setReading] = useState("");
   const [error, setError] = useState("");
   const [over, setOver] = useState(false);
   const load = async (file: File | undefined) => {
     if (!file) return;
     setError(""); setReading(file.name);
+    let text = "";
     try {
-      setSource(buildRealSource(JSON.parse(await file.text())));
-      setOpen(true);
+      text = await file.text();
+      setSource(buildRealSource(JSON.parse(text)));
+      setOpen(true); setLoaded(true);
     } catch (problem) {
-      setError(`No pudimos abrir «${file.name}»: ${reason(problem)}`);
+      setError(`No pudimos abrir «${file.name}»: ${reason(problem, text)}`);
     }
     setReading("");
   };
@@ -37,15 +43,16 @@ export default function Start() {
       <p className="eyebrow">Adopción y acompañamiento</p>
       <h1>Abre el archivo del semestre para empezar.</h1>
       <p className="page-description">El tablero se arma con <strong>tablero.json</strong>, el archivo con el uso de las herramientas de Bloque Neón de cada profesor, semestre a semestre.</p>
-      <p className="page-description">Lo genera cada semestre el proceso de datos de Conecta-TE en Databricks: descárgalo de allí y ábrelo aquí.</p>
+      <p className="page-description">Lo prepara cada semestre el equipo de datos de Conecta-TE en Databricks, la plataforma donde se procesan estos datos. Si no lo tienes, pídeselo a ese equipo.</p>
+      <p className="start-privacy"><Icon name="info" size={17}/><span>El archivo se lee solo en este navegador: no se sube a ningún servidor y no se guarda. Al recargar o cerrar la página, el tablero lo vuelve a pedir. Lo único que este navegador recuerda es la convocatoria que armes (códigos y talleres marcados), hasta que la vacíes.</span></p>
       <div className="drop-zone" data-over={over || undefined}>
         <Icon name="upload" size={26}/>
-        <p><strong>Arrastra aquí tablero.json</strong><span>o búscalo en tu computador</span></p>
+        <p><strong>Elige tablero.json en tu computador</strong><span className="drag-hint">o arrástralo a este recuadro</span></p>
         <label className="button button-primary file-button">Elegir el archivo<input className="sr-only" type="file" accept=".json,application/json" onChange={event => { load(event.target.files?.[0]); event.target.value = ""; }}/></label>
       </div>
       <p className="small muted" role="status">{reading && `Leyendo «${reading}»…`}</p>
-      {error && <div className="callout" role="alert"><Icon name="info"/><div><strong>{error}</strong><p>Revisa que sea el tablero.json que descargaste de Databricks. Si el problema sigue, avísale al equipo de datos con este mensaje.</p></div></div>}
-      <p className="small muted">El archivo se lee solo en este navegador: no se sube a ningún servidor y no se guarda. Al recargar o cerrar la página, el tablero lo vuelve a pedir.</p>
+      {error && <div className="callout is-error" role="alert"><Icon name="info"/><div><strong>{error}</strong><p>Revisa que sea el tablero.json del semestre que te dio el equipo de datos. Si el problema sigue, envíale este mensaje a ese equipo.</p></div></div>}
+      {loaded && <button className="text-link" onClick={() => setOpen(true)}>Volver al tablero con el archivo que ya estaba abierto <Icon name="arrow" size={15}/></button>}
     </section>
   </main>;
 }

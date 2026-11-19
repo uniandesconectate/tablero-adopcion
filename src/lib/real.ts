@@ -44,8 +44,8 @@ const aligned = (what: string, columns: unknown[][]) => { if (!columns.every(col
 /** Validates a tablero.json and builds the source the dashboard reads (data.ts). */
 export function buildRealSource(input: unknown) {
   const data = input as Contract;
-  if (data?.contrato !== CONTRACT) fail(`no es un tablero.json del proceso de datos de Conecta-TE con el formato "${CONTRACT}"${typeof data?.contrato === "string" ? ` (este trae «${data.contrato}»)` : ""}. Descarga de nuevo el tablero.json del semestre desde Databricks.`);
-  for (const key of ["fuente", "periodos", "pronostico", "herramientas", "grupos", "profesores", "filas", "uso", "pronosticos", "perfil_siguiente", "validacion"] as const) if (data[key] == null) fail(`falta la clave "${key}".`);
+  if (data?.contrato !== CONTRACT) fail(`no es un tablero.json del proceso de datos de Conecta-TE${typeof data?.contrato === "string" ? ", o es de una versión anterior" : ""}. Pide el tablero.json del semestre al equipo de datos. (Para el equipo de datos: se esperaba el formato "${CONTRACT}"${typeof data?.contrato === "string" ? ` y este trae «${data.contrato}»` : ""}.)`);
+  for (const key of ["fuente", "periodos", "pronostico", "herramientas", "grupos", "profesores", "filas", "uso", "pronosticos", "perfil_siguiente", "validacion"] as const) if (data[key] == null) fail(`le falta una parte, así que está incompleto o viene de otro proceso. Descárgalo de nuevo. (Para el equipo de datos: falta la clave "${key}".)`);
   const { fuente, periodos, pronostico, herramientas, grupos, profesores, filas, uso, pronosticos, validacion } = data;
   const { modelo, reglas } = fuente;
   if (![fuente.etiqueta, fuente.generado, modelo?.nombre, modelo?.version, modelo?.entrenado_hasta, reglas?.uso_efectivo, reglas?.intensidad, reglas?.corte_apropia, reglas?.seguidos].every(text => typeof text === "string") || !Array.isArray(modelo.supuestos)) fail("faltan textos en fuente.modelo o fuente.reglas.");

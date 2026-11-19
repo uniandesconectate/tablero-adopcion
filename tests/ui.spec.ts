@@ -210,7 +210,7 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   const alert = page.getByRole("alert").filter({ hasText: "No pudimos abrir" });
   await choose(page, { name: "notas.json", mimeType: "application/json", buffer: Buffer.from('{"hola": 1}') }, alert);
   await expect(alert).toContainText("No pudimos abrir «notas.json»: no es un tablero.json del proceso de datos de Conecta-TE");
-  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: no es un archivo JSON/));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: su contenido no es el de un tablero\.json/));
   const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
   broken.uso.rubricas.efectiva.pop();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/las columnas de filas y uso no tienen el mismo largo/));
@@ -236,6 +236,10 @@ test("Cambiar archivo vuelve a la pantalla inicial y el tablero se rehace con el
   await changeFile(page).click();
   await expect(startHeading(page)).toBeVisible();
   await expect(nav).toHaveCount(0);
+  // A mistaken tap goes back to the file that was open.
+  await page.getByRole("button", { name: "Volver al tablero con el archivo que ya estaba abierto" }).click();
+  await expect(nav.getByRole("button", { name: /^Pronóstico 2026-1/ })).toBeVisible();
+  await changeFile(page).click();
   const next = JSON.parse(await readFile(FIXTURE, "utf8"));
   next.pronostico.destino = "202620";
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(next)) }, changeFile(page));

@@ -15,7 +15,7 @@ Con eso se arma la lista de invitados.
 1. Descarga `tablero.json` del proceso de datos de Conecta-TE en Databricks. Sale uno nuevo cada semestre.
 2. Abre el tablero: **https://uniandesconectate.github.io/tablero-adopcion/**
 3. Arrastra `tablero.json` a la pantalla de inicio o búscalo con «Elegir el archivo». Si el archivo no es el correcto, el tablero lo dice y deja elegir otro.
-4. Para abrir otro archivo, usa «Cambiar archivo», arriba a la derecha.
+4. Para abrir otro archivo, usa «Cambiar archivo», arriba a la derecha. Si lo tocaste por error, «Volver al tablero» regresa al archivo que estaba abierto.
 
 El archivo se lee solo dentro del navegador: no se sube a ningún servidor y no se guarda. Al recargar o cerrar la página, el tablero lo vuelve a pedir. Lo único que el navegador recuerda es la convocatoria que estás armando (los códigos y talleres marcados), para no perderla al recargar.
 

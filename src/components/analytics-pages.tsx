@@ -238,7 +238,7 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
       <div className="metrics-grid three-column">
         <Metric label="Con probabilidad calculada" value={number(eligible.length)} detail={`de los ${plural(records.length, "profesor", "profesores")} que dictaron en ${period}${records.length ? ` (${pct(eligible.length, records.length)})` : ""}`} icon="users"/>
         <Metric label="Cuántos podrían configurarla" value={`unos ${number(Math.round(expected))}`} detail={<>Si todos volvieran a dictar. Es la suma de las probabilidades ({number(expected)}): una estimación, no una lista de personas que seguro empezarán.{RETURN_SHARE < 1 && <details className="metric-more"><summary>Ver detalle</summary>Suelen volver a dictar {returning} de cada 10 profesores{wholeUniversity}; no todos vuelven el semestre siguiente.</details>}</>} icon="trend"/>
-        <Metric label="Sin probabilidad" value={number(missing.length)} detail={`${missingParts.filter(([n]) => n > 0).map(([n, one, many]) => `${number(n)} ${n === 1 ? one : many}`).join(" · ")}${missing.length ? ". " : ""}${number(eligible.length)} + ${number(missing.length)} = ${number(records.length)}.`} icon="info"/>
+        <Metric label={"Sin pronóstico (no es 0\u00a0%)"} value={number(missing.length)} detail={`${missingParts.filter(([n]) => n > 0).map(([n, one, many]) => `${number(n)} ${n === 1 ? one : many}`).join(" · ")}${missing.length ? ". " : ""}${number(eligible.length)} + ${number(missing.length)} = ${number(records.length)}.`} icon="info"/>
       </div>
 
       {eligible.length ? <div className="two-column">
