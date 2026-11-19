@@ -1022,7 +1022,7 @@ main h1:focus, main h1:focus-visible { outline: none; }
 .steps-strip li > .step-go { min-height: 32px; padding: 4px 11px 4px 5px; border-radius: 999px; }
 .step-go .step-name { text-decoration: underline; text-decoration-color: #9ba993; text-underline-offset: 3px; }
 @media (max-width: 760px) {
-  /* The tray keeps one line of detail on phones; the rest is in «Convocatoria». */
-  .selection-tray .tray-detail ~ .tray-detail { display: none; }
+  /* On phones the tray drops the mix line; it is in «Convocatoria». */
+  .selection-tray .tray-mix { display: none; }
   .steps-strip li > .step-go { padding-right: 8px; }
 }

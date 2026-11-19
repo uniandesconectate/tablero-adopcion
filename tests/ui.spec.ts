@@ -495,6 +495,8 @@ test("con un cupo, la lista ofrece marcar a los primeros y avisa a quiénes deja
   await page.getByRole("banner").getByRole("button", { name: "Convocatoria (7)", exact: true }).click();
   // The mix of faculties and groups shows before downloading.
   await expect(selection.locator(".mix-line")).toContainText(/^Mezcla: 7 personas de \d+ facultad/);
+  // The groups of the semester being viewed are counted too, not only those of the semester before.
+  await expect(selection.locator(".mix-line")).toContainText(/\d+ de los \d+ grupos en \d{4}-\d, o en su último semestre dictado si no dictó en \d{4}-\d \(/);
   const downloadPromise = page.waitForEvent("download");
   await selection.getByRole("button", { name: "Descargar lista (7 profesores)", exact: true }).click();
   const csv = await readFile((await (await downloadPromise).path())!, "utf8");
@@ -594,6 +596,18 @@ test("la barra de la convocatoria dice qué facultades faltan en la mezcla", asy
   await openFile(page, "/?vista=profesores&herramienta=rubricas");
   for (const index of [0, 1]) await page.getByRole("checkbox", { name: `Seleccionar a ${await professorNameAt(page, index)}`, exact: true }).check();
   await expect(page.locator(".selection-tray")).toContainText(/Mezcla de este taller: \d+ facultad(es)? de \d+(; faltan? [^·]+)? · \d+ de los \d+ grupos \(en su semestre anterior\)/);
+});
+
+test("en el teléfono, con cupo, la barra sigue diciendo cuántas marcadas están en la lista", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openFile(page, "/?vista=profesores&herramienta=rubricas");
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("3");
+  for (const index of [0, 1]) await page.getByRole("checkbox", { name: `Seleccionar a ${await professorNameAt(page, index)}`, exact: true }).check();
+  const tray = page.locator(".selection-tray");
+  await expect(tray.getByText(/^Cupo de este taller/)).toBeVisible();
+  await expect(tray.getByText(/marcadas para este taller están en esta lista/)).toBeVisible();
+  // Only the mix line folds away on phones; it is in «Convocatoria».
+  await expect(tray.locator(".tray-mix")).toBeHidden();
 });
 
 test("en el Resumen, lo que respalda las listas se ve con título propio y la tarjeta de probabilidad alta dice si cambia la convocatoria", async ({ page }) => {
