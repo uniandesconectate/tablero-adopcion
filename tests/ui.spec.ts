@@ -487,6 +487,8 @@ test("con un cupo, la lista ofrece marcar a los primeros y avisa a quiénes deja
   await expect(tie).toContainText(/Cupo completo:\s*marcaste a los primeros 5 y a 2 de las 5 personas con/);
   // The request to choose stays, folded, one tap away.
   await expect(tie.getByText(/Para los 2 lugares que quedan, elige 2/)).toBeHidden();
+  // The tied people can still be hidden or shown again with one click.
+  await expect(tie.getByRole("button", { name: "Volver a 7 por página", exact: true })).toBeVisible();
   await page.getByRole("banner").getByRole("button", { name: "Convocatoria (7)", exact: true }).click();
   // The mix of faculties and groups shows before downloading.
   await expect(selection.locator(".mix-line")).toContainText(/^Mezcla: 7 personas de \d+ facultad/);
@@ -511,7 +513,8 @@ test("en el teléfono, un error de archivo toma el foco y deja a la vista el bot
 
 test("al cambiar de página desde abajo, la nueva empieza arriba y en la lista cada grupo dice su semestre", async ({ page }) => {
   await openFile(page, "/?herramienta=rubricas");
-  await page.mouse.wheel(0, 2000);
+  // Instant, so no wheel animation is still running when the menu is clicked.
+  await page.evaluate(() => window.scrollTo({ top: 2000, behavior: "instant" }));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
   await navigate(page, "Elegir profesores");
   await expect(page.getByRole("heading", { level: 1, name: /^Elige a quién invitar/ })).toBeFocused();
