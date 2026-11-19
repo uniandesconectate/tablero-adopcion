@@ -278,17 +278,33 @@ function csvCell(value: string): string {
   return `"${safe.replaceAll('"', '""')}"`;
 }
 
+/** Probability for the file: the number with its band, or why there is none (never 0). */
+function forecastText(record: TeacherToolRecord): string {
+  if (record.probability !== null) return `${formatProbability(record.probability)} (${TEXTS.bands[probabilityBandFor(record.tool.id, record.probability)].toLocaleLowerCase("es")})`;
+  if (record.tool.forecast === false) return "sin pronóstico para esta herramienta";
+  if (TEXTS.forecastOrigin && record.period !== TEXTS.forecastOrigin) return `solo hay pronóstico con datos de ${formatPeriod(TEXTS.forecastOrigin)}`;
+  return record.observation.configured ? `ya la tiene configurada en ${formatPeriod(record.period)}` : "sin probabilidad calculada (no es 0 %)";
+}
+
 export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFAULT_PERIOD): string {
-  // Probability, group, guidance and state reason stay out until Conecta-TE approves them (phase 4).
-  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente"];
+  // The reason for each invitation travels with the file; the group stays out (its names are pending).
+  const next = TEXTS.cleanTest ? `en ${formatPeriod(TEXTS.cleanTest)}` : "el semestre siguiente";
+  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente", "Por qué está en ese estado", "Qué conversar (sugerencia inicial)", `Probabilidad de configurarla ${next} (si vuelve a dictar, no mide si el taller le servirá)`];
   // Professors in code order and tools in their fixed order, as the call dialog lists them.
   const rows = PROFESSORS.flatMap(professor => {
     const tools = TOOLS.filter(tool => selection[professor.id]?.includes(tool.id));
     if (!tools.length) return [];
     const faculty = facultyAt(professor, period);
-    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), "Elegido a mano en el tablero; falta confirmar con el profesor que el taller le sirve", TEXTS.csv]];
+    const at = lastTaughtPeriod(professor, period);
+    const records = at ? tools.map(tool => getRecord(professor.id, tool.id, at)) : [];
+    const perTool = (text: (record: TeacherToolRecord) => string) => at ? records.map(record => `${record.tool.name}: ${text(record)}`).join(" | ") : `no había dictado hasta ${formatPeriod(period)}`;
+    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), "Elegido a mano en el tablero; falta confirmar con el profesor que el taller le sirve", TEXTS.csv,
+      perTool(plainReason),
+      // Configuration-only tools get no guidance (decision #13).
+      records.filter(record => record.tool.evidence !== "configuracion").map(record => `${record.tool.name}: ${GUIDANCE[record.state]}`).join(" | "),
+      perTool(forecastText)]];
   });
-  return `﻿${[header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
+  return `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
 }
 
 export { FACULTIES };

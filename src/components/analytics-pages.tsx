@@ -14,7 +14,7 @@ import {
   type TeacherToolRecord,
   type ValidationRow,
 } from "@/lib/types";
-import { EmptyState, Icon, Metric, OffOrigin, PersonIcon, SINCE, STATE_SHORT, SectionHeading, StateBadge, StateBars, TARGET, bandRange, number, offOrigin, pct, plural } from "@/components/ui";
+import { EmptyState, Icon, Metric, OffOrigin, PersonIcon, SINCE, STATE_SHORT, SectionHeading, StateBadge, StateBars, TARGET, bandRange, bandText, nextTerm, number, offOrigin, pct, plural } from "@/components/ui";
 
 // Groups were built from the configuration of these tools (LockDown and Turnitin live inside quizzes and activities).
 const CIRCULAR = new Set(["contenidos", "actividades", "anuncios", "calificaciones", "cuestionarios", "rubricas", "debates", "lockdown", "turnitin"]);
@@ -26,7 +26,7 @@ const facultyText = (faculty: string) => faculty === "Todos" ? "Todas las facult
 
 function PersonButton({ record, onProfessor }: { record: TeacherToolRecord; onProfessor: PageProps["onProfessor"] }) {
   return <button className="person-cell inline-link" onClick={() => onProfessor(record)}>
-    <PersonIcon initials={record.professor.initials}/>
+    <PersonIcon/>
     <span><strong>{record.professor.name}</strong><span className="muted">{facultyLong(record.faculty)}</span></span>
   </button>;
 }
@@ -44,15 +44,17 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
   const inBase = (record: TeacherToolRecord) => configOnly ? record.observation.configured !== null : record.state !== "Sin información";
   const inGroup = (id: string) => records.filter(record => record.originGroup === id);
   const withoutOrigin = records.filter(record => record.originGroup === null).length;
-  const selectedGroup = GROUPS.find(group => group.id === filters.group);
-  const selectedRecords = selectedGroup ? inGroup(selectedGroup.id) : [];
-  const selectedMembers = selectedRecords.filter(counted).sort(byCode);
   const groupData = GROUPS.map(group => {
     const members = inGroup(group.id);
     const base = members.filter(inBase).length;
     const count = members.filter(counted).length;
     return { group, members, base, count, unknown: members.length - base, part: share(count, base) };
   });
+  const chosen = GROUPS.find(group => group.id === filters.group);
+  // Until one is chosen, the detail shows the group with the highest share; it is not written to the filters.
+  const selectedGroup = chosen ?? [...groupData].filter(row => row.part.ratio !== null).sort((a, b) => b.part.ratio! - a.part.ratio!)[0]?.group;
+  const selectedRecords = selectedGroup ? inGroup(selectedGroup.id) : [];
+  const selectedMembers = selectedRecords.filter(counted).sort(byCode);
   const openMembers = (state: AdoptionState = activeState) => {
     if (selectedGroup) onNavigate("profesores", {
       group: selectedGroup.id,
@@ -67,9 +69,8 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Distintas formas de usar la plataforma.</h1>
-        <p className="muted">Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (por ejemplo, en Adopta)`} y abrir esa lista.</p>
-        <p className="muted">Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes. Cada profesor cuenta en el grupo que tenía en su semestre anterior: el último que dictó antes de {period}.</p></div>
+      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Busca por grupo a quién invitar al taller de {tool.name}</h1><p className="page-tagline">Distintas formas de usar la plataforma.</p>
+        <p className="muted">Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (por ejemplo, en Adopta)`} y abrir esa lista. Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes. Cada profesor cuenta en el grupo que tenía en su semestre anterior: el último que dictó antes de {period}.</p></div>
       <button className="button button-ghost" onClick={() => onMethod("grupos")}><Icon name="info"/>Guía: los grupos</button>
     </div>
 
@@ -104,10 +105,12 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
               <span className="muted">{configOnly ? `${number(count)} de ${number(base)} con dato la tienen configurada · ${number(unknown)} sin dato` : `${number(count)} de ${number(base)} clasificados están en ${activeState} · ${number(unknown)} sin estado`} · {number(members.length)} en el grupo</span>
             </button>)}
           </div>}
+          <p className="muted subgroup-note">Los grupos describen qué combinación de herramientas configura cada profesor. No son una escala de calidad ni niveles de competencia.</p>
+          <details className="muted subgroup-note"><summary>Cómo leer estos grupos</summary>
           {withoutOrigin > 0 && <p className="muted subgroup-note">{plural(withoutOrigin, "profesor no tiene", "profesores no tienen")} un semestre anterior registrado desde {SINCE} (por ejemplo, porque {withoutOrigin === 1 ? "dicta" : "dictan"} por primera vez), así que no {withoutOrigin === 1 ? "tiene" : "tienen"} grupo y no {withoutOrigin === 1 ? "aparece" : "aparecen"} en estas barras.</p>}
           {CIRCULAR.has(tool.id) && <p className="muted subgroup-note">Ojo al comparar: los grupos se armaron mirando qué herramientas configura cada profesor, {tool.id === "lockdown" || tool.id === "turnitin" ? `entre ellas cuestionarios y actividades, y ${tool.name} solo existe dentro de cuestionarios o actividades` : `entre ellas ${tool.name}`}. Por eso, parte de las diferencias entre grupos viene de cómo se armaron y no es un hallazgo nuevo.</p>}
-          <p className="muted subgroup-note">Los grupos describen qué combinación de herramientas configura cada profesor. No son una escala de calidad ni niveles de competencia.</p>
           {!configOnly && activeState === "Adopta" && <p className="muted subgroup-note">Un porcentaje bajo en Adopta puede querer decir que en ese grupo muchos ya la usaban: mira también Usa y Apropia en el detalle del grupo.</p>}
+          </details>
         </div>
       </section>
 
@@ -115,6 +118,7 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
         {selectedGroup ? <>
           <SectionHeading eyebrow="Dentro del grupo · describe, no califica" title={selectedGroup.name} description={selectedGroup.description}/>
           <div className="panel-body">
+            {!chosen && <p className="small">Se muestra el grupo con el porcentaje más alto. Toca otro grupo para verlo.</p>}
             <p className="muted">{plural(selectedRecords.length, "profesor", "profesores")} de este grupo · {tool.name} · {period} · {facultyText(filters.faculty)}</p>
             {!configOnly && <StateBars records={selectedRecords} onSelect={openMembers} compact/>}
             <SectionHeading title={`Personas ${target}`} description="Los 5 primeros por código, no es un orden de prioridad. Abre una ficha para ver su historia en cada herramienta."/>
@@ -204,7 +208,7 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">05 / PRONÓSTICO</p><h1 tabIndex={-1}>Qué podría pasar, con qué respaldo.</h1>
+      <div><p className="eyebrow">05 / PRONÓSTICO</p><h1 tabIndex={-1}>¿Quién podría configurar {tool.name} {nextTerm}?</h1><p className="page-tagline">Qué podría pasar, con qué respaldo.</p>
         <p className="muted">Consulta quién podría empezar a configurar {tool.name} y revisa qué tan bien acertó este cálculo antes.</p></div>
       <button className="button button-ghost" onClick={() => onMethod("pronostico")}><Icon name="info"/>Guía: el pronóstico</button>
     </div>
@@ -233,15 +237,16 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
 
     {tab === "estimates" ? <>
       <div className="callout"><Icon name="info"/><p><strong>Probabilidad de que configure {tool.name} la próxima vez que dicte{TARGET ? ` (${formatPeriod(TARGET)})` : ""}, calculada con los datos de {formatPeriod(origin)}.</strong> Solo para quienes no la tenían configurada en {formatPeriod(origin)}; incluye a quienes la tuvieron antes y la dejaron. No predice los estados Adopta, Usa o Apropia ni el beneficio de un taller.</p></div>
+      <details className="subgroup-note technical"><summary>Cómo se calculó</summary><p>{TEXTS.modelPlain}{availablePeriods.length > 0 && ` La confianza que se muestra viene de revisarlo contra ${availablePeriods.map(formatPeriod).join(" y ")} (pestaña «¿Qué tan bien acierta?»).`}</p><details><summary>Ver detalle técnico</summary><p>{TEXTS.model}</p></details></details>
 
       {tool.forecast === false ? <section className="panel"><EmptyState title="Sin modelo para esta herramienta" description={`Para ${tool.name} no hay pronóstico de empezar a configurar.`}/></section> : offOrigin(filters.period) ? <section className="panel"><OffOrigin period={filters.period} onGo={period => onFilters({ period })}/></section> : <>
       <div className="metrics-grid three-column">
         <Metric label="Con probabilidad calculada" value={number(eligible.length)} detail={`de los ${plural(records.length, "profesor", "profesores")} que dictaron en ${period}${records.length ? ` (${pct(eligible.length, records.length)})` : ""}`} icon="users"/>
-        <Metric label="Cuántos podrían configurarla" value={`unos ${number(Math.round(expected))}`} detail={<>Si todos volvieran a dictar. Es la suma de las probabilidades ({number(expected)}): una estimación, no una lista de personas que seguro empezarán.{RETURN_SHARE < 1 && <details className="metric-more"><summary>Ver detalle</summary>Suelen volver a dictar {returning} de cada 10 profesores{wholeUniversity}; no todos vuelven el semestre siguiente.</details>}</>} icon="trend"/>
-        <Metric label={"Sin pronóstico (no es 0\u00a0%)"} value={number(missing.length)} detail={`${missingParts.filter(([n]) => n > 0).map(([n, one, many]) => `${number(n)} ${n === 1 ? one : many}`).join(" · ")}${missing.length ? ". " : ""}${number(eligible.length)} + ${number(missing.length)} = ${number(records.length)}.`} icon="info"/>
+        <Metric label="Cuántos podrían configurarla" value={`unos ${number(Math.round(expected))}`} detail={<>Si todos volvieran a dictar, se espera que unos {number(Math.round(expected))} la configuren. Sale de sumar las probabilidades de cada persona (da {number(expected)}): es una estimación, no una lista de personas que seguro empezarán.{RETURN_SHARE < 1 && <details className="metric-more"><summary>Ver detalle</summary>Suelen volver a dictar {returning} de cada 10 profesores{wholeUniversity}; no todos vuelven el semestre siguiente.</details>}</>} icon="trend"/>
+        <Metric label="Sin probabilidad calculada" value={number(missing.length)} detail={`No quiere decir 0\u00a0%.${missing.length ? ` ${missingParts.filter(([n]) => n > 0).map(([n, one, many]) => `${number(n)} ${n === 1 ? one : many}`).join(" · ")}.` : ""} Con y sin probabilidad suman los ${number(records.length)} que dictaron (${number(eligible.length)} + ${number(missing.length)}).`} icon="info"/>
       </div>
 
-      {eligible.length ? <div className="two-column">
+      {eligible.length ? <div className="two-column forecast-columns">
         <section className="panel">
           <SectionHeading title="Probabilidades, en tres rangos" description="Cada profesor cuenta una vez. Toca un rango para ver su lista, ordenada por probabilidad."/>
           <div className="panel-body">
@@ -260,18 +265,17 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
           <SectionHeading title={`Los ${Math.min(6, sortedCandidates.length)} con mayor probabilidad`} description={`De ${number(eligible.length)} con probabilidad calculada. No es una lista de invitados: la selección para un taller sigue siendo una decisión de Conecta-TE.`}
             action={<button className="button button-ghost" onClick={() => openCandidates()}>Ver a los {number(eligible.length)} en orden<Icon name="arrow"/></button>}/>
           <div className="table-wrap"><table className="data-table as-cards">
-            <thead><tr><th scope="col">Profesor</th><th scope="col">Probabilidad{TARGET ? ` (${formatPeriod(TARGET)})` : ""}</th><th scope="col">Estado en {period}</th></tr></thead>
+            <thead><tr><th scope="col">Profesor</th><th scope="col">Probabilidad{TARGET ? ` (${formatPeriod(TARGET)})` : ""}</th><th scope="col">Estado en {period}</th><th scope="col">¿La ha tenido antes en sus aulas?</th></tr></thead>
             <tbody>{sortedCandidates.slice(0, 6).map(record => <tr key={record.professor.id}>
               <td data-label="Profesor"><PersonButton record={record} onProfessor={onProfessor}/></td>
-              <td data-label={`Probabilidad${TARGET ? ` (${formatPeriod(TARGET)})` : ""}`}><span className="probability-value">{formatProbability(record.probability!)}</span></td>
+              <td data-label={`Probabilidad${TARGET ? ` (${formatPeriod(TARGET)})` : ""}`}><span className="probability-value">{formatProbability(record.probability!)}</span><span className="state-note">{bandText(tool.id, probabilityBandFor(tool.id, record.probability!))}</span></td>
               <td data-label={`Estado en ${period}`}><StateBadge state={record.state} label={tool.evidence === "configuracion" ? "Configurada: no" : plainLabel(record)}/></td>
+              <td className="table-reason" data-label="¿La ha tenido antes en sus aulas?">{record.forecastReason ?? "—"}</td>
             </tr>)}</tbody>
           </table></div>
         </section>
       </div> : <section className="panel"><EmptyState title="Nadie con probabilidad calculada" description={`En este contexto no hay profesores sin ${tool.name} configurada y con datos suficientes para el pronóstico. Prueba otra herramienta o facultad.`}/></section>}
       </>}
-      <p className="muted subgroup-note"><strong>Cómo se calculó:</strong> {TEXTS.modelPlain}{availablePeriods.length > 0 && ` La confianza que se muestra viene de revisarlo contra ${availablePeriods.map(formatPeriod).join(" y ")} (pestaña «¿Qué tan bien acierta?»).`}</p>
-      <details className="subgroup-note technical"><summary>Ver detalle técnico</summary><p>{TEXTS.model}</p></details>
     </> : <>
       {filters.faculty !== "Todos" && <p className="faculty-warning"><strong>Estas cifras son de toda la universidad, no de {facultyLong(filters.faculty)}.</strong></p>}
       <div className="callout"><Icon name="info"/><p><strong>Revisión de {tool.name} con {TEXTS.badge.toLocaleLowerCase("es")} de todas las facultades y grupos.</strong> Aquí no se aplican los filtros de facultad ni de grupo. Se mide si la configuraron, no su estado.{TEXTS.cleanTest && ` Esta revisión ya se usó para elegir el pronóstico, así que puede verse algo mejor de lo que es; la prueba definitiva será con ${formatPeriod(TEXTS.cleanTest)}.`}</p></div>

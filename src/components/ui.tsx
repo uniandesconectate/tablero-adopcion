@@ -32,6 +32,7 @@ const paths: Record<string, ReactNode> = {
   menu: <path d="M4 6h16M4 12h16M4 18h16"/>,
   book: <><path d="M12 5v16M3 3c4 0 7 0 9 2 2-2 5-2 9-2v16c-4 0-7 0-9 2-2-2-5-2-9-2V3Z"/></>,
   filter: <><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></>,
+  person: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
 };
 
 export function Icon({ name, size = 19 }: { name: string; size?: number }) {
@@ -98,8 +99,9 @@ export const conditionDescriptions: Record<Condition, string> = {
 export function StateBadge({ state, label = state }: { state: AdoptionState; label?: string }) {
   return <span className="state-badge" data-state={state}><span className="state-dot" data-state={state}/>{label}</span>;
 }
-export function PersonIcon({ initials }: { initials: string }) {
-  return <span className="avatar" aria-hidden="true">{initials}</span>;
+/** Neutral icon: characters taken from the code read as a rank or a score. */
+export function PersonIcon() {
+  return <span className="avatar" aria-hidden="true"><Icon name="person" size={16}/></span>;
 }
 export function SectionHeading({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
   return <div className="panel-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2 className="section-title">{title}</h2>{description && <p className="section-description">{description}</p>}</div>{action}</div>;
@@ -135,7 +137,8 @@ export function StateBars({ records, onSelect, compact = false }: { records: Tea
     })}
     <p className="bar-detail">{compact
       ? `${plural(evaluated, "profesor clasificado", "profesores clasificados")} (con uno de los 5 estados)${cases.map(([c, n]) => n ? ` · ${CASE_LABELS[c]}: ${number(n)}` : "").join("")}`
-      : `Los porcentajes se calculan sobre ${plural(evaluated, "profesor", "profesores")} con uno de los 5 estados${records[0] ? ` en ${records[0].tool.name}` : ""}. Sin estado: ${number(cases[0][1])} «${CASE_LABELS.regla}» (la usaron sin llegar a 2 semestres seguidos, o la retomaron después de dejarla; algunos la usan hoy) y ${number(cases[1][1])} «${CASE_LABELS.dato}». ${number(evaluated)} + ${number(cases[0][1])} + ${number(cases[1][1])} = ${number(records.length)}.`}{evaluated > 0 && evaluated < MIN_PROFESSORS ? ` ${fewNote}` : ""}</p>
+      : `Los porcentajes se calculan sobre ${plural(evaluated, "profesor", "profesores")} con uno de los 5 estados${records[0] ? ` en ${records[0].tool.name}` : ""}.`}{evaluated > 0 && evaluated < MIN_PROFESSORS ? ` ${fewNote}` : ""}</p>
+    {!compact && <details className="bar-detail count-detail"><summary>Cómo se cuentan quienes no tienen estado</summary>{`Sin estado: ${number(cases[0][1])} «${CASE_LABELS.regla}» (la usaron sin llegar a 2 semestres seguidos, o la retomaron después de dejarla; algunos la usan hoy) y ${number(cases[1][1])} «${CASE_LABELS.dato}». ${number(evaluated)} + ${number(cases[0][1])} + ${number(cases[1][1])} = ${number(records.length)}.`}</details>}
   </div>;
 }
 /** `habitual` draws a thin mark at the tool's habitual rate. */

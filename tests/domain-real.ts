@@ -110,6 +110,18 @@ test("R10: the CSV keeps the last taught state for whoever did not teach, and co
   assert.equal(selectionState(p3, "rubricas", "202220"), "no había dictado hasta 2022-2");
   assert.equal(selectionState(p0, "feedbackfruits", "202410"), "configurada en 2024-1: sin dato");
   assert.equal(TEXTS.csvName("202520"), "convocatoria-conectate-2025-2.csv");
+  // The reason for each invitation travels with the file: why the state, what to talk about and the probability.
+  const header = csv.slice(1).split("\r\n")[0];
+  assert.ok(header.endsWith('"Por qué está en ese estado";"Qué conversar (sugerencia inicial)";"Probabilidad de configurarla en 2026-1 (si vuelve a dictar, no mide si el taller le servirá)"'));
+  const cells = (row: string) => row.slice(1, -1).split('";"');
+  const [why, talk, chance] = cells(rows[0]).slice(-3);
+  assert.ok(why.startsWith("Debates: Ninguno de sus estudiantes la ha usado"));
+  assert.equal(talk, "Debates: Explorar un primer acercamiento");
+  assert.match(chance, /^Debates: (\d|menos de|ya la tiene|sin probabilidad)/);
+  const [, talk2, chance2] = cells(rows[1]).slice(-3);
+  assert.equal(talk2, "Rúbricas: Conversar sobre la interrupción", "configuration-only tools get no guidance");
+  assert.ok(chance2.includes("LockDown: solo hay pronóstico con datos de 2025-2"), "no forecast outside its origin, never 0");
+  assert.ok(chance2.includes("FeedbackFruits: sin pronóstico para esta herramienta"));
 });
 
 test("R11: reach and shared classrooms reach the record", () => {

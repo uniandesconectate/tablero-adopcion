@@ -63,7 +63,7 @@ test("un agregado abre sus profesores y conserva el contexto al navegar atrás",
   const count = Number(label!.match(/Rúbricas: (\d+)/)![1]);
   expect(count).toBeGreaterThan(0);
   await aggregate.click();
-  await expect(page.getByRole("heading", { name: "El acompañamiento tiene nombre." })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Elige a quién invitar al taller de Rúbricas" })).toBeVisible();
   await expect(page.getByLabel("Herramienta", { exact: true })).toHaveValue("rubricas");
   await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
   await expect(page.getByRole("heading", { name: new RegExp(`^${count} profesor`) })).toBeVisible();
@@ -72,7 +72,7 @@ test("un agregado abre sus profesores y conserva el contexto al navegar atrás",
   expect(states.every(state => state === "No expuesto")).toBe(true);
 
   await page.goBack();
-  await expect(page.getByRole("heading", { level: 1, name: /Cada profesor/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^¿A quién invitar al taller de/ })).toBeVisible();
   await page.goForward();
   await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
   await expect(page.getByLabel("Herramienta", { exact: true })).toHaveValue("rubricas");
@@ -111,7 +111,10 @@ test("una ficha asocia varias herramientas a la misma persona y el CSV no la dup
   await detail.getByRole("button", { name: /^Agregar a la convocatoria del taller «/ }).click();
   await expect(detail.getByRole("button", { name: /^Quitar de la convocatoria del taller «/ })).toBeVisible();
   await detail.getByLabel("Herramienta de la ficha", { exact: true }).selectOption("contenidos");
+  // Viewing another tool keeps the list's workshop button and adds one for the tool being viewed.
+  await expect(detail.getByRole("button", { name: /^Quitar de la convocatoria del taller «/ })).toHaveCount(1);
   await detail.getByRole("button", { name: /^Agregar a la convocatoria del taller «/ }).click();
+  await expect(detail.getByRole("button", { name: /^Quitar de la convocatoria del taller «/ })).toHaveCount(2);
   await detail.getByLabel("Herramienta de la ficha", { exact: true }).selectOption("rubricas");
   await expect(detail.getByRole("button", { name: /^Quitar de la convocatoria del taller «/ })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -132,6 +135,24 @@ test("una ficha asocia varias herramientas a la misma persona y el CSV no la dup
   expect(lines[1]).toContain(name);
   expect(lines[1]).toContain("Contenidos | Rúbricas");
   expect(lines[1]).toContain("Datos reales de Brightspace · uso interno");
+});
+
+test("la lista de un taller abre en quienes aún no la usan, por probabilidad, y deja ver a todos", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  await navigate(page, "Elegir profesores");
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  await expect(page.getByLabel("Ordenar por", { exact: true })).toHaveValue("probability");
+  const states = await page.locator("table tbody .state-badge").allTextContents();
+  expect(states.length).toBeGreaterThan(0);
+  expect(states.every(state => state === "No expuesto")).toBe(true);
+  await page.getByRole("button", { name: /^Ver a todos \(\d+\)$/ }).click();
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("Todos");
+
+  // A configuration-only tool opens on those who do not have it configured.
+  await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("lockdown");
+  await navigate(page, "Talleres y herramientas");
+  await page.getByRole("button", { name: "Armar la lista de este taller" }).click();
+  await expect(page.getByLabel("¿La tiene configurada en 2025-2?", { exact: true })).toHaveValue("no");
 });
 
 test("una búsqueda sin coincidencias permite restablecer la lista", async ({ page }) => {
@@ -177,11 +198,11 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
   await page.setViewportSize({ width: 390, height: 844 });
   await openFile(page);
   const views = [
-    ["Resumen", /Cada profesor/],
-    ["Talleres y herramientas", /El uso tiene distintos momentos/],
-    ["Elegir profesores", /El acompañamiento tiene nombre/],
-    ["Grupos parecidos", /Distintas formas de usar la plataforma/],
-    ["Pronóstico", /Qué podría pasar, con qué respaldo/],
+    ["Resumen", /^¿A quién invitar al taller de/],
+    ["Talleres y herramientas", /^Cómo está .* y a quién invitar a su taller$/],
+    ["Elegir profesores", /^Elige a quién invitar al taller de/],
+    ["Grupos parecidos", /^Busca por grupo a quién invitar/],
+    ["Pronóstico", /^¿Quién podría configurar/],
   ] as const;
   for (const [label, heading] of views) {
     await navigate(page, label);
@@ -189,6 +210,8 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
     await expect(page.getByRole("button", { name: "Abrir menú", exact: true })).toHaveAttribute("aria-expanded", "false");
     await assertNoBodyOverflow(page);
   }
+  // The closed phone menu is out of sight and out of the keyboard order.
+  await expect(page.getByRole("complementary", { name: "Navegación principal" })).toBeHidden();
   await page.getByRole("button", { name: "Guía: el pronóstico", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Guía del tablero" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -210,13 +233,18 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   const alert = page.getByRole("alert").filter({ hasText: "No pudimos abrir" });
   await choose(page, { name: "notas.json", mimeType: "application/json", buffer: Buffer.from('{"hola": 1}') }, alert);
   await expect(alert).toContainText("No pudimos abrir «notas.json»: no es un tablero.json del proceso de datos de Conecta-TE");
+  // The message takes the focus, so it is seen and read at once.
+  await expect(alert).toBeFocused();
+  await expect(alert.getByText(/^Detalle para el equipo de datos$/)).toBeVisible();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: su contenido no es el de un tablero\.json/));
   const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
   broken.uso.rubricas.efectiva.pop();
-  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/las columnas de filas y uso no tienen el mismo largo/));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/tablero\.json»: tiene un error por dentro/));
+  await alert.getByText("Detalle para el equipo de datos", { exact: true }).click();
+  await expect(alert.getByText(/las columnas de filas y uso no tienen el mismo largo/)).toBeVisible();
   await expect(changeFile(page)).toHaveCount(0);
   await choose(page, FIXTURE, changeFile(page));
-  await expect(page.getByRole("heading", { level: 1, name: /Cada profesor/ })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: /^¿A quién invitar al taller de/ })).toBeVisible();
 });
 
 test("también se abre arrastrando el archivo a la pantalla inicial", async ({ page }) => {
