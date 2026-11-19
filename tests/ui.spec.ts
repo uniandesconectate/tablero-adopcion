@@ -88,7 +88,7 @@ test("la convocatoria conserva personas fuera de los filtros y después de recar
   await expect(page.getByRole("banner").getByRole("button", { name: "Convocatoria (2)", exact: true })).toBeVisible();
   await page.getByLabel("Buscar profesor", { exact: true }).fill("ninguna-persona-coincide-98231");
   await expect(page.getByRole("heading", { name: "Nadie con «ninguna-persona-coincide-98231» en esta lista" })).toBeVisible();
-  await expect(page.getByText("0 cumplen los filtros de esta lista (en esta u otras páginas) · 2 no se ven con los filtros actuales (siguen guardados)", { exact: true })).toBeVisible();
+  await expect(page.getByText("0 de las 2 marcadas para este taller están en esta lista; 2 no se ven por los filtros de ahora, pero siguen en la convocatoria.", { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(startHeading(page)).toBeVisible();
@@ -99,6 +99,8 @@ test("la convocatoria conserva personas fuera de los filtros y después de recar
   await expect(selection).toBeVisible();
   for (const name of names) await expect(selection.getByText(name, { exact: true })).toBeVisible();
   await expect(selection.getByText("2 profesores de la convocatoria no se ven con los filtros actuales de la lista; igual se descargan.", { exact: true })).toBeVisible();
+  // The list each person was marked from lives in memory: after a reload the dialog says the file will not carry it.
+  await expect(selection.getByText(/^2 personas se marcaron antes de recargar la página o de cambiar de archivo/)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(selection).not.toBeVisible();
 });
@@ -129,7 +131,7 @@ test("una ficha asocia varias herramientas a la misma persona y el CSV no la dup
   const downloadPromise = page.waitForEvent("download");
   await selection.getByRole("button", { name: "Descargar lista (1 profesor)", exact: true }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("convocatoria-conectate-2025-2.csv");
+  expect(download.suggestedFilename()).toBe("convocatoria-conectate-taller-2026-1-datos-2025-2.csv");
   const csv = await readFile((await download.path())!, "utf8");
   const lines = csv.replace(/^\uFEFF/, "").trim().split(/\r?\n/);
   expect(lines).toHaveLength(2);
@@ -147,7 +149,7 @@ test("la lista de un taller abre en quienes aún no la usan, por probabilidad, y
   const states = await page.locator("table tbody .state-badge").allTextContents();
   expect(states.length).toBeGreaterThan(0);
   expect(states.every(state => state === "No expuesto")).toBe(true);
-  await page.getByRole("button", { name: /^Ver a todos \(\d+\)$/ }).click();
+  await page.getByRole("button", { name: /^Ver a todos \(\d+\): limpiar filtros$/ }).click();
   await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("Todos");
 
   // A configuration-only tool opens on those who do not have it configured.
@@ -175,7 +177,8 @@ test("una búsqueda sin coincidencias lo dice y permite borrarla o restablecer l
 test("la validación aclara su objetivo y conserva la evaluación global al cambiar facultad", async ({ page }) => {
   await openFile(page);
   await navigate(page, "Grupos parecidos");
-  await page.getByRole("button", { name: /profesores clasificados en Adopta;.*Ver grupo\./ }).first().click();
+  // Grupos compares the workshop's state first.
+  await page.getByRole("button", { name: /profesores clasificados en No expuesto;.*Ver grupo\./ }).first().click();
   const facultySelect = page.getByLabel("Facultad", { exact: true });
   const faculty = await facultySelect.locator("option").nth(1).getAttribute("value");
   // An option without an explicit value uses its visible text as the value.
@@ -210,7 +213,7 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
     ["Resumen", /^¿A quién invitar al taller de/],
     ["Talleres y herramientas", /^.* por dentro: estados, cambios y pronóstico$/],
     ["Elegir profesores", /^Elige a quién invitar al taller de/],
-    ["Grupos parecidos", /^Otra forma de buscar para el taller de/],
+    ["Grupos parecidos", /^Buscar por grupos parecidos/],
     ["Pronóstico", /^¿Quién podría configurar/],
   ] as const;
   for (const [label, heading] of views) {
@@ -226,8 +229,8 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await navigate(page, "Elegir profesores");
-  // Grupos parecidos leaves the list on Adopta, and the fixture has nobody there.
-  await page.getByRole("button", { name: "Limpiar filtros de la lista", exact: true }).click();
+  // One control clears the list: «Ver a todos», next to what is shown.
+  await page.getByRole("button", { name: /^Ver a todos \(\d+\): limpiar filtros$/ }).click();
   const name = await professorNameAt(page, 0);
   await page.getByRole("button", { name: `Ver ficha de ${name}`, exact: true }).click();
   await expect(page.getByRole("dialog", { name, exact: true })).toBeVisible();
@@ -241,25 +244,26 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   // Next.js keeps its own empty role="alert" for route changes.
   const alert = page.getByRole("alert").filter({ hasText: "No pudimos abrir" });
   await choose(page, { name: "notas.json", mimeType: "application/json", buffer: Buffer.from('{"hola": 1}') }, alert);
-  await expect(alert).toContainText("No pudimos abrir «notas.json»: no es un tablero.json del proceso de datos de Conecta-TE");
+  await expect(alert).toContainText("No pudimos abrir «notas.json». No es un tablero.json del proceso de datos de Conecta-TE");
   // The message takes the focus, so it is seen and read at once.
   await expect(alert).toBeFocused();
   await expect(alert.getByText(/^Detalle para el equipo de datos$/)).toBeVisible();
-  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: su contenido no es el de un tablero\.json/));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»\. Su contenido no es el de un tablero\.json/));
   await expect(alert).toContainText("Si ya elegiste ese y el mensaje sigue, pídele a ese equipo un archivo nuevo y envíale este mensaje");
-  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from('{"contrato": "tabl') }, alert.getByText(/tablero\.json»: está cortado o dañado: parece que la descarga no terminó\./));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from('{"contrato": "tabl') }, alert.getByText(/tablero\.json»\. Está cortado o dañado: parece que la descarga no terminó\./));
   // Each kind of problem has its own action: a cut download is downloaded again.
   await expect(alert).toContainText("Qué hacer: Descárgalo de nuevo y elige el archivo nuevo.");
-  await choose(page, { name: "convocatoria.csv", mimeType: "text/csv", buffer: Buffer.from('"Profesor";"Código"') }, alert.getByText(/convocatoria\.csv»: es una lista \.csv/));
+  await choose(page, { name: "convocatoria.csv", mimeType: "text/csv", buffer: Buffer.from('"Profesor";"Código"') }, alert.getByText(/convocatoria\.csv»\. Es una lista \.csv/));
   await expect(alert).toContainText("Qué hacer: Elige el archivo que se llama tablero.json");
   const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
   broken.uso.rubricas.efectiva.pop();
-  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/tablero\.json»: tiene un error por dentro/));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/tablero\.json»\. Tiene un error por dentro/));
   await alert.getByText("Detalle para el equipo de datos", { exact: true }).click();
   await expect(alert.getByText(/las columnas de filas y uso no tienen el mismo largo/)).toBeVisible();
   await expect(changeFile(page)).toHaveCount(0);
   await choose(page, FIXTURE, changeFile(page));
-  await expect(page.getByRole("heading", { level: 1, name: /^¿A quién invitar al taller de/ })).toBeVisible();
+  // The opened dashboard is announced: its title takes the focus.
+  await expect(page.getByRole("heading", { level: 1, name: /^¿A quién invitar al taller de/ })).toBeFocused();
 });
 
 test("también se abre arrastrando el archivo a la pantalla inicial", async ({ page }) => {
@@ -289,6 +293,10 @@ test("Cambiar archivo vuelve a la pantalla inicial y el tablero se rehace con el
   await page.getByRole("button", { name: "Volver al tablero con el archivo que ya estaba abierto" }).click();
   await expect(nav.getByRole("button", { name: /^Pronóstico 2026-1/ })).toBeVisible();
   await changeFile(page).click();
+  // A wrong file keeps the open one, and the message itself offers the way back.
+  const alert = page.getByRole("alert").filter({ hasText: "No pudimos abrir" });
+  await choose(page, { name: "notas.json", mimeType: "application/json", buffer: Buffer.from('{"hola": 1}') }, alert);
+  await expect(alert.getByRole("button", { name: /^Volver al tablero \(sigue abierto «/ })).toBeVisible();
   const next = JSON.parse(await readFile(FIXTURE, "utf8"));
   next.pronostico.destino = "202620";
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(next)) }, changeFile(page));
@@ -360,12 +368,14 @@ test("con dos talleres hay cupo por taller y cupo total, y en el total cada pers
   const names = [await professorNameAt(page, 0), await professorNameAt(page, 1)];
   for (const name of names) await page.getByRole("checkbox", { name: `Seleccionar a ${name}`, exact: true }).check();
   await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("contenidos");
+  // On the list, another tool opens its workshop list; this test needs everyone.
+  await page.getByRole("button", { name: /^Ver a todos \(\d+\): limpiar filtros$/ }).click();
   await page.getByLabel("Buscar profesor", { exact: true }).fill(names[0]);
   await page.getByRole("checkbox", { name: `Seleccionar a ${names[0]}`, exact: true }).check();
   await page.getByRole("banner").getByRole("button", { name: "Convocatoria (2)", exact: true }).click();
   const selection = page.getByRole("dialog", { name: "Tu próxima convocatoria" });
   await selection.getByRole("spinbutton", { name: "Cupo total (opcional)", exact: true }).fill("1");
-  await expect(selection.getByText("Cupo total (cada persona cuenta una vez): sobran 1 persona (2 marcadas, cupo de 1).", { exact: false })).toBeVisible();
+  await expect(selection.getByText("Cupo total (cada persona cuenta una vez): sobra 1 persona (2 marcadas, cupo de 1).", { exact: false })).toBeVisible();
   await selection.getByRole("spinbutton", { name: "Cupo total (opcional)", exact: true }).fill("3");
   await expect(selection.getByText("Cupo total (cada persona cuenta una vez): caben todos, 2 de 3 lugares; quedan 1 libre.", { exact: true })).toBeVisible();
 });
@@ -377,7 +387,8 @@ test("marcar a toda la lista, el cupo por taller y el criterio viajan al archivo
   const all = page.getByRole("button", { name: /^Marcar a los (\d+) de esta lista \(todas las páginas\)$/ });
   const total = Number((await all.innerText()).match(/\d+/)![0]);
   expect(total).toBeGreaterThan(10);
-  await expect(page.getByText(`Marcar a los 10 de esta página (de ${total})`, { exact: true })).toBeVisible();
+  // The short label fits its column; the full count stays in the tooltip.
+  await expect(page.locator("th .select-page")).toHaveAttribute("title", `Marcar a los 10 de esta página (de ${total})`);
   await all.click();
   await expect(page.getByRole("button", { name: `Desmarcar a los ${total} de esta lista`, exact: true })).toBeVisible();
   await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill(String(total - 2));
@@ -395,7 +406,7 @@ test("marcar a toda la lista, el cupo por taller y el criterio viajan al archivo
   expect(header).toContain('"Antecedente de la probabilidad";"Nota"');
   expect(first).toContain("Elegido a mano en el tablero (Rúbricas: lista «Todos los estados · 2025-2»");
   expect(first).toMatch(/datos generados el .+ · lista descargada el \d{4}-\d{2}-\d{2}/);
-  expect(first.endsWith('"desempate por facultad"')).toBe(true);
+  expect(first.endsWith(`"desempate por facultad";"Rúbricas: ${total - 2}"`)).toBe(true);
 });
 
 test("un semestre anterior se avisa arriba y deja volver al más reciente", async ({ page }) => {
@@ -423,4 +434,49 @@ test("en móvil el menú toma el foco, Escape lo cierra y tocar un grupo muestra
   const detail = page.getByRole("region", { name: "Detalle del grupo seleccionado" });
   await expect(detail).toBeFocused();
   await expect(detail).toBeInViewport();
+});
+
+test("en la lista, otra herramienta abre su lista de taller y Grupos parecidos no cambia el filtro", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  await navigate(page, "Elegir profesores");
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  await navigate(page, "Grupos parecidos");
+  await page.getByLabel("Estado que quieres comparar").selectOption("Adopta");
+  await navigate(page, "Elegir profesores");
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("contenidos");
+  await expect(page.getByLabel("Estado en Contenidos (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("lockdown");
+  await expect(page.getByLabel("¿La tiene configurada en 2025-2?", { exact: true })).toHaveValue("no");
+});
+
+test("«Ver qué tan bien acierta» abre la revisión con los dos semestres, las mismas cifras del resto del tablero", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  await page.getByRole("button", { name: "Ver qué tan bien acierta", exact: true }).click();
+  await expect(page.getByRole("button", { name: "¿Qué tan bien acierta?", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByLabel("Semestre revisado")).toHaveValue("Todos");
+  await page.getByRole("button", { name: "Quién podría empezar", exact: true }).click();
+  // The reasons to trust the forecast are gathered at the top.
+  await expect(page.getByRole("region", { name: "Por qué creerle" })).toContainText("Se probó a ciegas");
+});
+
+test("con un cupo, la lista ofrece marcar a los primeros y avisa a quiénes deja un empate", async ({ page }) => {
+  await page.goto("/?vista=profesores&herramienta=rubricas");
+  await expect(startHeading(page)).toBeVisible();
+  // Five copies of each person: every probability is shared by five people.
+  await choose(page, await enlarged(5), changeFile(page));
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("7");
+  // The page follows the quota, and the cut at place 7 falls inside a tie.
+  await expect(page.getByLabel("Filas por página")).toHaveValue("7");
+  const tie = page.locator(".quota-tie");
+  await expect(tie).toContainText("elige 2 de estas 5 personas");
+  await tie.getByRole("button", { name: /^Ver aquí a las 5 personas con / }).click();
+  await expect(page.locator("tbody tr[data-tied]")).toHaveCount(5);
+  await expect(page.getByRole("checkbox", { name: /más que el cupo de 7$/ })).toBeVisible();
+  await page.getByRole("button", { name: "Marcar a los primeros 5 (antes del empate)", exact: true }).click();
+  await page.getByRole("banner").getByRole("button", { name: "Convocatoria (5)", exact: true }).click();
+  const selection = page.getByRole("dialog", { name: "Tu próxima convocatoria" });
+  // One workshop: it opens by workshop, highest probability first.
+  await expect(selection.getByRole("button", { name: "Por taller", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(selection.getByText("5 profesores", { exact: true })).toBeVisible();
 });

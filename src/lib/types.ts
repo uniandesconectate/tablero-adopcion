@@ -90,9 +90,11 @@ export interface ValidationRow { toolId: ToolId; period: PeriodId; probability: 
 export interface PageProps {
   filters: Filters;
   onFilters: (patch: Partial<Filters>) => void;
-  onNavigate: (view: ViewId, patch?: Partial<Filters>) => void;
+  /** `tab` opens a tab of the target view: «validation» is the review tab of Pronóstico. */
+  onNavigate: (view: ViewId, patch?: Partial<Filters>, tab?: ForecastTab) => void;
   onProfessor: (record: TeacherToolRecord) => void;
   onMethod: (section?: GuideSection) => void;
 }
+export type ForecastTab = "estimates" | "validation";
 export type GuideSection = "taller" | "estados" | "configurada" | "reglas" | "grupos" | "pronostico" | "tablero";
 export type Selection = Record<string, ToolId[]>;

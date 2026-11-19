@@ -58,7 +58,7 @@ onSource(() => {
   STATE_SHORT = {
     Adopta: `la usa por primera vez desde ${SINCE}`,
     Usa: "la usa semestre tras semestre",
-    Apropia: `la usa seguido y con más ${TEXTS.unit} que 3 de cada 4 semestres de uso`,
+    Apropia: `la usa seguido y con más ${TEXTS.unit} que la mayoría (más que 3 de cada 4 semestres de uso)`,
     "No expuesto": `no la ha usado con estudiantes desde ${SINCE}`,
     Abandona: "la dejó; puede retomarla",
     "Sin información": "probó y no siguió, la retomó o falta información",
@@ -89,6 +89,14 @@ export function trackSentence(toolId: ToolId, band: ProbabilityBand): string {
   const periods = [...new Set(VALIDATION_ROWS.filter(row => row.toolId === toolId).map(row => formatPeriod(row.period)))].sort().join(" y ");
   const per10 = Math.round(started / cases * 10);
   return `En la revisión de ${periods}, de ${plural(cases, "caso", "casos")} con probabilidad «${TEXTS.bands[band].toLocaleLowerCase("es")}», ${number(started)} la configuraron: ${per10 < 1 ? "menos de 1" : `unos ${number(per10)}`} de cada 10.`;
+}
+/** When «más del doble» and «entre lo habitual y el doble» hit alike in the review, the cut orders but does not split two different groups. */
+export function bandsAlike(toolId: ToolId): string {
+  const [high, middle] = (["Alta", "Media"] as const).map(band => bandTrackRecord(toolId, band));
+  if (!high.cases || !middle.cases) return "";
+  const [a, b] = [high, middle].map(row => Math.round(row.started / row.cases * 10));
+  if (a !== b) return "";
+  return `Ojo con el corte: en la revisión, «${TEXTS.bands.Alta.toLocaleLowerCase("es")}» y «${TEXTS.bands.Media.toLocaleLowerCase("es")}» acertaron parecido (unos ${number(a)} de cada 10 la configuraron en los dos). El corte sirve para ordenar, no separa dos grupos muy distintos.`;
 }
 /** Plain meaning of the words of the technical model text, which comes from the file as written. */
 export const MODEL_TERMS = "Palabras del texto técnico: «Markov con variables» es un método que estima a qué grupo pasará cada profesor la próxima vez que dicte, según su grupo actual y otros datos (su facultad, sus estudiantes, su historia); «modelo directo de herramientas» pasa de ese grupo probable a la probabilidad de configurar cada herramienta; «transiciones» son los pasos de un semestre al siguiente; «salto 1» quiere decir el semestre inmediatamente siguiente; «notebook 05» es el cuaderno de análisis del equipo donde se eligió este pronóstico.";

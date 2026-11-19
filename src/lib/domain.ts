@@ -298,11 +298,11 @@ function forecastText(record: TeacherToolRecord): string {
   return record.observation.configured ? `ya la tiene configurada en ${formatPeriod(record.period)}` : "sin probabilidad calculada (no es 0 %)";
 }
 
-/** `criteria` keeps, per «professor:tool», the list each person was marked from; `note` goes in every row. */
-export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFAULT_PERIOD, { criteria = {}, note = "", date = new Date() }: { criteria?: Record<string, string>; note?: string; date?: Date } = {}): string {
+/** `criteria` keeps, per «professor:tool», the list each person was marked from; `note` and the quotas go in every row. */
+export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFAULT_PERIOD, { criteria = {}, note = "", date = new Date(), capacity = {}, total }: { criteria?: Record<string, string>; note?: string; date?: Date; capacity?: Partial<Record<ToolId, number>>; total?: number } = {}): string {
   // The reason for each invitation travels with the file; the group stays out (its names are pending).
   const next = TEXTS.cleanTest ? `en ${formatPeriod(TEXTS.cleanTest)}` : "el semestre siguiente";
-  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente", "Por qué está en ese estado", "Qué conversar (sugerencia inicial)", `Probabilidad de configurarla ${next} (si vuelve a dictar, no mide si el taller le servirá)`, "Antecedente de la probabilidad", "Nota"];
+  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente", "Por qué está en ese estado", "Qué conversar (sugerencia inicial)", `Probabilidad de configurarla ${next} (si vuelve a dictar, no mide si el taller le servirá)`, "Antecedente de la probabilidad", "Nota", "Cupo escrito en el tablero"];
   const downloaded = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   // Professors in code order and tools in their fixed order, as the call dialog lists them.
   const rows = PROFESSORS.flatMap(professor => {
@@ -313,13 +313,14 @@ export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFA
     const records = at ? tools.map(tool => getRecord(professor.id, tool.id, at)) : [];
     const perTool = (text: (record: TeacherToolRecord) => string) => at ? records.map(record => `${record.tool.name}: ${text(record)}`).join(" | ") : `no había dictado hasta ${formatPeriod(period)}`;
     const lists = tools.filter(tool => criteria[`${professor.id}:${tool.id}`]).map(tool => `${tool.name}: ${criteria[`${professor.id}:${tool.id}`]}`);
-    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), `Elegido a mano en el tablero${lists.length ? ` (${lists.join(" | ")})` : ""}; falta confirmar con el profesor que el taller le sirve`, `${TEXTS.csv} · lista descargada el ${downloaded}`,
+    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), `Elegido a mano en el tablero${lists.length ? ` (${lists.join(" | ")})` : " (sin la lista: se marcó antes de recargar la página o de cambiar de archivo)"}; falta confirmar con el profesor que el taller le sirve`, `${TEXTS.csv} · lista descargada el ${downloaded}`,
       perTool(plainReason),
       // Configuration-only tools get no guidance (decision #13), and the cell says so instead of staying empty.
       perTool(record => record.tool.evidence === "configuracion" ? "sin sugerencia (de esta herramienta solo hay datos de configuración)" : GUIDANCE[record.state]),
       perTool(forecastText),
       perTool(record => record.forecastReason ?? "—"),
-      note.trim()]];
+      note.trim(),
+      [...tools.filter(tool => capacity[tool.id] !== undefined).map(tool => `${tool.name}: ${capacity[tool.id]}`), ...(total === undefined ? [] : [`total de la convocatoria: ${total}`])].join(" | ")]];
   });
   return `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
 }

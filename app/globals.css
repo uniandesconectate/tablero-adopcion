@@ -832,3 +832,72 @@ html { scroll-padding-bottom: 150px; }
   .hero-copy > .page-description { order: 2; margin-bottom: 12px; }
 }
 @media (max-width: 760px) { .remove-label { display: inline; } }
+/* Clarity round 4: the list near the top, the quota in the list, one decision sentence, opaque top bar and larger targets. */
+.nowrap { white-space: nowrap; }
+.topbar { background: #e7e9e4; }
+.start-privacy p { margin: 0; }
+.start-privacy p + p { margin-top: 6px; }
+.start-privacy strong { font-weight: 600; }
+.drop-zone p .file-alias { font-size: 12px; }
+.workshop-band > div { min-width: 0; }
+.workshop-band .steps-box { margin: 4px 0 0; }
+.list-actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; flex-shrink: 0; }
+.quota-field input { width: 110px; min-height: 40px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); }
+.list-context .guidance-line { margin: 6px 0 0; font-size: 12px; }
+.callout.decision summary > span { line-height: 1.5; }
+.quota-tie { border-color: #d7b65a; }
+.quota-tie p { margin: 0; }
+.quota-tie .button { margin-top: 10px; }
+.tie-done { margin: 0 0 12px; }
+tr[data-tied] { background: #fbf1d4; }
+.tie-note { display: inline-block; margin-top: 3px; padding: 1px 6px; border-radius: 4px; background: #f2dc9b; color: #4d3d0d; font-size: 11px; font-weight: 600; }
+.check-hit input[type='checkbox'], .select-page input[type='checkbox'] { width: 24px; height: 24px; }
+.data-table th.checkbox-cell { min-width: 112px; }
+.select-page-text { max-width: none; white-space: nowrap; }
+.filters-grid { grid-template-columns: minmax(130px, .5fr) minmax(260px, 1.6fr) minmax(150px, .9fr) minmax(170px, 1.1fr); }
+.metric-links { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
+.hero-option-more { margin: -4px 0 10px; font-size: 11px; color: #b6c5a6; }
+.hero-option-more summary { cursor: pointer; color: #d9e2cf; text-decoration: underline; text-decoration-color: #7d8f73; }
+.hero-card .hero-option-more p { margin: 6px 0 0; max-width: none; font-size: 11px; line-height: 1.5; }
+.tab-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 16px; }
+.trend-scale { margin: 0 0 8px; }
+.trust { align-items: flex-start; }
+.trust ul { margin: 8px 0 6px; padding-left: 18px; }
+.trust li + li { margin-top: 4px; }
+.trust p { margin: 0; }
+.group-profile .data-table { font-size: 12px; }
+.group-profile .data-table th, .group-profile .data-table td { white-space: nowrap; }
+.selection-one { margin: 0 0 14px; font-size: 14px; }
+.selection-one strong { font-weight: 600; }
+.gloss { margin-top: -4px; }
+@media (max-width: 980px) {
+  .filters-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .filters-grid { grid-template-columns: minmax(0, 1fr); }
+  /* The step comes before the options on phones; the decorative rings would cross the text. */
+  .hero-copy > .page-description { order: 0; }
+  .hero-orbit, .hero-card::after { display: none; }
+  .topbar-guide { width: auto; padding: 0 10px; }
+  .topbar-guide > span { display: inline; }
+  .change-file { width: 44px; padding: 0; justify-content: center; }
+  .change-file > span { display: none; }
+  .topbar-guide, .change-file, .selection-button { min-height: 44px; }
+  .list-actions { justify-content: space-between; }
+  .data-table th.checkbox-cell { min-width: 0; }
+  .selection-tray .tray-detail { font-size: 11px; }
+}
+@media (min-width: 761px) { .workshop-line.is-help-only { flex-basis: auto; } }
+.filters-toggle { display: none; }
+@media (max-width: 760px) {
+  .filters-toggle { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; border: 0; border-radius: inherit; background: transparent; color: #3c5844; font-size: 13px; font-weight: 550; text-align: left; }
+  .list-filters:not(.is-open) > .filters-grid, .list-filters:not(.is-open) > .panel-footer { display: none; }
+  .list-filters.is-open > .filters-toggle { border-bottom: 1px solid var(--border-soft); border-radius: 0; }
+  .list-actions { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: end; }
+  .list-actions .field { min-width: 0; }
+  .quota-field input { width: 100%; }
+}
+.callout.decision summary strong { display: inline; margin: 0; }
+.guidance-line { margin: 0 0 10px; font-size: 12px; }
+.hero-card p, .hero-card .hero-note { max-width: none; }
+.technical + .toolbar { margin-top: 16px; }

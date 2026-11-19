@@ -109,27 +109,34 @@ test("R10: the CSV keeps the last taught state for whoever did not teach, and co
   assert.ok(gap.includes('"Ingeniería";') && gap.includes('"Debates: No expuesto (último semestre dictado: 2022-1)";'));
   assert.equal(selectionState(p3, "rubricas", "202220"), "no había dictado hasta 2022-2");
   assert.equal(selectionState(p0, "feedbackfruits", "202410"), "configurada en 2024-1: sin dato");
-  assert.equal(TEXTS.csvName("202520"), "convocatoria-conectate-2025-2.csv");
+  // The name says the semester of the workshop and the one of the data; one workshop puts its tool first.
+  assert.equal(TEXTS.csvName("202520"), "convocatoria-conectate-taller-2026-1-datos-2025-2.csv");
+  assert.equal(TEXTS.csvName("202520", "rubricas"), "convocatoria-rubricas-taller-2026-1-datos-2025-2.csv");
   // The reason for each invitation travels with the file: why the state, what to talk about, the probability and its antecedent.
   const header = csv.slice(1).split("\r\n")[0];
-  assert.ok(header.endsWith('"Por qué está en ese estado";"Qué conversar (sugerencia inicial)";"Probabilidad de configurarla en 2026-1 (si vuelve a dictar, no mide si el taller le servirá)";"Antecedente de la probabilidad";"Nota"'));
+  assert.ok(header.endsWith('"Por qué está en ese estado";"Qué conversar (sugerencia inicial)";"Probabilidad de configurarla en 2026-1 (si vuelve a dictar, no mide si el taller le servirá)";"Antecedente de la probabilidad";"Nota";"Cupo escrito en el tablero"'));
   const cells = (row: string) => row.slice(1, -1).split('";"');
-  const [why, talk, chance, antecedent, note] = cells(rows[0]).slice(-5);
+  const [why, talk, chance, antecedent, note, quota] = cells(rows[0]).slice(-6);
   assert.ok(why.startsWith("Debates: Ninguno de sus estudiantes la ha usado"));
   assert.equal(talk, "Debates: Explorar un primer acercamiento");
   assert.match(chance, /^Debates: (\d|menos de|ya la tiene|sin probabilidad)/);
   assert.match(antecedent, /^Debates: /);
   assert.equal(note, "");
-  const [, talk2, chance2] = cells(rows[1]).slice(-5);
+  assert.equal(quota, "");
+  // Without the list it was marked from (a reload loses it), the criterion says so.
+  assert.match(cells(rows[0])[8], /^Elegido a mano en el tablero \(sin la lista: se marcó antes de recargar la página o de cambiar de archivo\)/);
+  const [, talk2, chance2] = cells(rows[1]).slice(-6);
   assert.equal(talk2, "Rúbricas: Conversar sobre la interrupción | LockDown: sin sugerencia (de esta herramienta solo hay datos de configuración) | FeedbackFruits: sin sugerencia (de esta herramienta solo hay datos de configuración)", "configuration-only tools get no guidance, and the cell says so");
   assert.ok(chance2.includes("LockDown: solo hay pronóstico con datos de 2025-2"), "no forecast outside its origin, never 0");
   assert.ok(chance2.includes("FeedbackFruits: sin pronóstico para esta herramienta"));
   // The list each person was marked from, the note and both dates travel too.
-  const marked = exportSelectionCsv({ [p1]: ["debates"] }, "202520", { criteria: { [`${p1}:debates`]: "lista «No expuesto · 2025-2»" }, note: "desempate por facultad", date: new Date(2026, 10, 19) });
+  const marked = exportSelectionCsv({ [p1]: ["debates"] }, "202520", { criteria: { [`${p1}:debates`]: "lista «No expuesto · 2025-2»" }, note: "desempate por facultad", date: new Date(2026, 10, 19), capacity: { debates: 25, rubricas: 9 }, total: 30 });
   const [row] = marked.slice(1).trim().split("\r\n").slice(1).map(cells);
   assert.equal(row[8], "Elegido a mano en el tablero (Debates: lista «No expuesto · 2025-2»); falta confirmar con el profesor que el taller le sirve");
   assert.match(row[9], /datos generados el .+ · lista descargada el 2026-11-19$/);
-  assert.equal(row.at(-1), "desempate por facultad");
+  assert.equal(row.at(-2), "desempate por facultad");
+  // The quota written in the dashboard travels too, only for this person's workshops.
+  assert.equal(row.at(-1), "Debates: 25 | total de la convocatoria: 30");
 });
 
 test("R11: reach and shared classrooms reach the record", () => {

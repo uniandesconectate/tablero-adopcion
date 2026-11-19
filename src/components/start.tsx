@@ -27,7 +27,7 @@ function reason(error: unknown, text: string, name: string): [string, string, st
   // Messages without a plain part are only for the data team.
   if (cut < 0) return ["tiene un error por dentro y el tablero no lo puede leer.", ASK, message];
   const plain = message.slice(0, cut);
-  const todo = plain.startsWith("no es un tablero.json") ? `${OTHER} Si es ese, pídele a ese equipo el de este semestre y envíale este mensaje (botón «Copiar el mensaje»).` : plain.startsWith("le falta una parte") ? `Descárgalo de nuevo. Si sigue igual, ${ASK.replace(/^P/, "p")}` : ASK;
+  const todo = plain.startsWith("no es un tablero.json") ? `${OTHER} Si estás seguro de que elegiste el que te dio ese equipo, pídele uno nuevo y envíale este mensaje (botón «Copiar el mensaje»).` : plain.startsWith("le falta una parte") ? `Descárgalo de nuevo. Si sigue igual, ${ASK.replace(/^P/, "p")}` : ASK;
   return [plain, todo, message.slice(cut + TECHNICAL.length).replace(/\)$/, "")];
 }
 
@@ -56,7 +56,8 @@ export default function Start() {
       setOpen(true); setLoaded({ name: file.name, about: `datos hasta ${formatPeriod(DEFAULT_PERIOD)}${TEXTS.generated ? `, generados el ${TEXTS.generated}` : ""}` });
     } catch (problem) {
       const [plain, todo, detail] = reason(problem, text, file.name);
-      setError({ title: `No pudimos abrir «${file.name}»: ${plain}`, todo, detail });
+      // A period after the name keeps one colon at most in the title.
+      setError({ title: `No pudimos abrir «${file.name}». ${plain.replace(/^./, c => c.toLocaleUpperCase("es"))}`, todo, detail });
     }
     setReading("");
   };
@@ -76,14 +77,14 @@ export default function Start() {
       <p className="page-description">El tablero se arma con <strong>tablero.json</strong>, el archivo con el uso de las herramientas de Bloque Neón de cada profesor, semestre a semestre.</p>
       <p className="page-description">Lo prepara cada semestre el equipo de datos de Conecta-TE. Si no lo tienes, pídeselo a ese equipo.</p>
       <details className="context-help start-origin"><summary>¿De dónde sale este archivo?</summary><p>Lo genera el proceso de datos de Conecta-TE en Databricks, la plataforma donde ese equipo procesa los datos de Bloque Neón. Trae, por profesor y semestre, qué herramientas tiene configuradas y si sus estudiantes las usan, con un código seudónimo en lugar del nombre.</p></details>
-      {error && <div ref={alert} tabIndex={-1} className="callout is-error" role="alert"><Icon name="info"/><div><strong>{error.title}</strong><p>Qué hacer: {error.todo}</p><div className="heading-links">{picker("Elegir otro archivo", "button button-secondary file-button")}<button className="text-link" onClick={copy}>{copied ? "Mensaje copiado" : "Copiar el mensaje"}</button></div>{error.detail && <details><summary>Detalle para el equipo de datos</summary><p>{error.detail}</p></details>}</div></div>}
+      {error && <div ref={alert} tabIndex={-1} className="callout is-error" role="alert"><Icon name="info"/><div><strong>{error.title}</strong><p>Qué hacer: {error.todo}</p><div className="heading-links">{loaded && <button className="button button-secondary" onClick={() => setOpen(true)}>Volver al tablero (sigue abierto «{loaded.name}»)</button>}<button className="text-link" onClick={copy}>{copied ? "Mensaje copiado" : "Copiar el mensaje"}</button></div><p className="small">Para probar con otro archivo, usa «Elegir el archivo», aquí abajo.</p>{error.detail && <details><summary>Detalle para el equipo de datos</summary><p>{error.detail}</p></details>}</div></div>}
       <div className="drop-zone" data-over={over || undefined}>
         <Icon name="upload" size={26}/>
-        <p><strong>Tu archivo: tablero.json</strong><span className="drag-hint">o arrástralo a este recuadro</span></p>
+        <p><strong>Tu archivo: tablero.json</strong><span className="file-alias">puede llamarse distinto, por ejemplo «tablero (1).json»</span><span className="drag-hint">o arrástralo a este recuadro</span></p>
         {picker("Elegir el archivo", "button button-primary file-button")}
       </div>
       <p className="small muted" role="status">{reading && `Leyendo «${reading}»…`}</p>
-      <p className="start-privacy"><Icon name="info" size={17}/><span>El archivo se lee solo en este navegador: no se sube a ningún servidor y no se guarda. Al recargar o cerrar la página, el tablero lo vuelve a pedir. Lo único que este navegador recuerda es la lista de personas que marques para invitar a un taller (la «convocatoria»: sus códigos y talleres), hasta que la vacíes.</span></p>
+      <div className="start-privacy"><Icon name="info" size={17}/><div><p><strong>El archivo no se guarda:</strong> se lee solo en este navegador y no se sube a ningún servidor. Al recargar o cerrar la página, el tablero lo vuelve a pedir.</p><p><strong>Tu convocatoria sí se guarda en este navegador:</strong> la lista de personas que marques para invitar a un taller (sus códigos y talleres), hasta que la vacíes.</p></div></div>
     </section>
   </main>;
 }

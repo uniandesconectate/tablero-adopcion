@@ -165,7 +165,8 @@ export function buildRealSource(input: unknown) {
       : ["Cómo se calcula.", human(`${reglas.uso_efectivo} Usa requiere ${reglas.periodos_seguidos} semestres seguidos con uso efectivo. ${reglas.seguidos} ${reglas.corte_apropia} Para ${tool.name}, ese corte es ${tool.threshold?.toLocaleString("es-CO")} ${reglas.intensidad}, contando todas sus aulas. Valor típico = mediana del tramo activo (sus semestres seguidos de uso). Corte = percentil 75.`)],
     forecastOrigin: pronostico.origen as PeriodId | null,
     facultyNames: FACULTY_NAMES,
-    csvName: (period: PeriodId) => `convocatoria-conectate-${human(period)}.csv`,
+    // The workshop is for the forecast target; the data are of the semester consulted. One workshop puts its tool in the name.
+    csvName: (period: PeriodId, toolId?: string) => `convocatoria-${toolId ?? "conectate"}-taller-${human(pronostico.destino)}-datos-${human(period)}.csv`,
     neverExposed: (taught: number, since: string) => `Sin uso efectivo en ${taught === 1 ? "el semestre que dictó" : `los ${taught} semestres que dictó`} desde ${since}.`,
     bands: { Baja: "Menos que lo habitual", Media: "Entre lo habitual y el doble", Alta: "Más del doble de lo habitual" } as Record<ProbabilityBand, string>,
     searchPlaceholder: "Código (D-…)",
