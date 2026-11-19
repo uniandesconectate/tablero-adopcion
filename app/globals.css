@@ -742,7 +742,6 @@ details.technical summary { cursor: pointer; }
 .check-hit input[type='checkbox'], .select-page input[type='checkbox'] { width: 18px; height: 18px; }
 .select-page { min-height: 44px; cursor: pointer; }
 @media (max-width: 760px) {
-  .drag-hint { display: none; }
   .sidebar { visibility: hidden; box-shadow: none; transition: transform .2s ease, visibility 0s linear .2s; }
   .sidebar.is-open { visibility: visible; box-shadow: 12px 0 50px #17231d29; transition: transform .2s ease; }
   .topbar .mobile-menu { width: 44px; height: 44px; }

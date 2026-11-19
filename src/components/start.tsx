@@ -10,7 +10,7 @@ const PREFIX = "Datos reales (tablero.json): ";
 const TECHNICAL = " (Para el equipo de datos: ";
 /** Plain reason why a file is not a valid tablero.json, and the detail for the data team; `text` tells an empty or cut download from another kind of file. */
 function reason(error: unknown, text: string): [string, string] {
-  if (error instanceof SyntaxError) return [!text.trim() ? "está vacío." : text.trimStart().startsWith("{") ? "está cortado o dañado: parece que la descarga no terminó." : "su contenido no es el de un tablero.json.", ""];
+  if (error instanceof SyntaxError) return [!text.trim() ? "está vacío. Descárgalo de nuevo." : text.trimStart().startsWith("{") ? "está cortado o dañado: parece que la descarga no terminó. Descárgalo de nuevo." : "su contenido no es el de un tablero.json.", ""];
   if (!(error instanceof Error) || !error.message.startsWith(PREFIX)) return ["no tiene la estructura de tablero.json.", ""];
   const message = error.message.slice(PREFIX.length);
   const cut = message.indexOf(TECHNICAL);

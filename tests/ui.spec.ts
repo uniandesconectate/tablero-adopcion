@@ -237,6 +237,7 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   await expect(alert).toBeFocused();
   await expect(alert.getByText(/^Detalle para el equipo de datos$/)).toBeVisible();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: su contenido no es el de un tablero\.json/));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from('{"contrato": "tabl') }, alert.getByText(/tablero\.json»: está cortado o dañado: parece que la descarga no terminó\. Descárgalo de nuevo\./));
   const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
   broken.uso.rubricas.efectiva.pop();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/tablero\.json»: tiene un error por dentro/));
@@ -248,7 +249,10 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
 });
 
 test("también se abre arrastrando el archivo a la pantalla inicial", async ({ page }) => {
+  // With a mouse the hint stays even in a narrow window.
+  await page.setViewportSize({ width: 700, height: 900 });
   await page.goto("/");
+  await expect(page.getByText("o arrástralo a este recuadro", { exact: true })).toBeVisible();
   const text = await readFile(FIXTURE, "utf8");
   await expect(async () => {
     const dataTransfer = await page.evaluateHandle(json => { const files = new DataTransfer(); files.items.add(new File([json], "tablero.json", { type: "application/json" })); return files; }, text);
