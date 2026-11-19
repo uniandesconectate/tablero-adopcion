@@ -186,7 +186,7 @@ export function plainReason(record: TeacherToolRecord): string {
     "falta-dato": `Falta el dato de uso con estudiantes de ${period}, así que no tiene estado.`,
     historia: "Su historia tiene semestres sin dato o que no se pueden comparar; no tomamos la falta de dato como falta de uso.",
     inconsistente: "Los datos de configuración y de uso no coinciden.",
-    "no-expuesto": `Ninguno de sus estudiantes la ha usado ${known.length === 1 ? `en ${period}, el único semestre con datos que ha dictado desde ${since}` : `en los ${number(known.length)} semestres que dictó desde ${since}`}.${configuredBefore ? ` La tuvo configurada en ${plural(configuredBefore, "semestre", "semestres")} desde ${since}, sin actividad de estudiantes.` : ""}`,
+    "no-expuesto": `Ninguno de sus estudiantes la ha usado ${known.length === 1 ? `en ${period}, el único semestre con datos que ha dictado desde ${since}` : `en los ${number(known.length)} semestres que dictó desde ${since}`}.${configuredBefore ? ` La tuvo configurada en ${plural(configuredBefore, "semestre", "semestres")} desde ${since}, sin actividad de estudiantes (contado desde ${since}, como los estados; el antecedente de la probabilidad puede contar semestres anteriores).` : ""}`,
     adopta: `${period} es el primer semestre en que sus estudiantes la usan desde ${since}; aún no se sabe si seguirá.`,
     retomo: "Volvió a usarla después de dejarla. El tablero todavía no tiene un estado para quien la retoma.",
     apropia: `${runText} y en un semestre típico pone ${number(typical ?? 0)} ${TEXTS.unit}, más que el corte de Apropia (${cut}).`,

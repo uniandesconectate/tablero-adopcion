@@ -62,7 +62,7 @@ onSource(() => {
     Adopta: `la usa por primera vez desde ${SINCE}`,
     Usa: "la usa semestre tras semestre",
     Apropia: `la usa seguido y con más ${TEXTS.unit} que la mayoría (más que 3 de cada 4 semestres de uso)`,
-    "No expuesto": `no la ha usado con estudiantes desde ${SINCE}`,
+    "No expuesto": `sus estudiantes no la han usado (datos desde ${SINCE})`,
     Abandona: "la dejó; puede retomarla",
     "Sin información": "probó y no siguió, la retomó o falta información",
   };
@@ -76,7 +76,7 @@ onSource(() => {
   };
 });
 /** «Taller sugerido» carries one provisional mark: the name's own, or this one. */
-export const workshopNote = (tool: Tool) => tool.workshop.includes("provisional") ? "" : "Sugerencia inicial, pendiente de aprobación de Conecta-TE.";
+export const workshopNote = (tool: Tool) => tool.workshop.includes("provisional") ? "Taller provisional: el nombre lo propuso el equipo y falta confirmarlo en el catálogo de Conecta-TE; igual puedes armar su lista." : "Sugerencia inicial, pendiente de aprobación de Conecta-TE.";
 /** «30 % o más», «de 15 % a menos de 30 %»…; the synthetic test data has fixed cuts in its labels. */
 export function bandRange(toolId: ToolId, band: ProbabilityBand): string {
   const habitual = habitualRate(toolId);

@@ -27,6 +27,8 @@ const groupsFirst = (here: boolean) => `Para calcular la probabilidad de configu
 
 const barStyle = (value: number): CSSProperties => ({ "--bar-width": `${Math.min(100, Math.max(0, value * 100))}%` } as CSSProperties);
 const facultyText = (faculty: string) => faculty === "Todos" ? "Todas las facultades" : facultyLong(faculty);
+/** «unos 7 de cada 10 repiten grupo; 3 cambian», so a share of stability reads with a reference. */
+export const tenths = (kept: number, total: number) => { const k = Math.round(kept / total * 10); return `unos ${k} de cada 10 repiten grupo; ${10 - k} cambian`; };
 /** How stable the groups are: who keeps the group of the previous taught semester in the semester shown. */
 export function groupStability(records: TeacherToolRecord[]) {
   const both = records.filter(record => record.originGroup !== null && record.professor.groupByPeriod[record.period]);
@@ -109,7 +111,6 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
   return <>
     <div className="page-heading">
       <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Buscar por grupos parecidos (opcional)</h1><p className="page-tagline">Distintas formas de usar la plataforma.</p><p className="groups-plain">{GROUPS.length} tipos de profesor según qué combinación de herramientas configura: {GROUPS[0]?.id} a {GROUPS.at(-1)?.id} son nombres, no niveles, notas ni un orden de calidad. El pronóstico también los usa para calcular la probabilidad.</p>
-        {withBoth > 0 && <p className="stability"><span className="stability-figure">{pct(kept, withBoth)}</span><span><strong>¿Qué tan estables son?</strong> De {plural(withBoth, "profesor", "profesores")} con grupo en su semestre anterior y en {period}, {number(kept)} ({pct(kept, withBoth)}) siguen en el mismo grupo; los demás cambiaron de un semestre al siguiente.</span></p>}
         <p className="groups-when">Úsala si quieres invitar por tipo de profesor: toca un grupo abajo para ver a quiénes tiene {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name}`} y abrir esa lista.</p>
         <details className="muted small group-how"><summary>Cómo funciona esta página y cómo se armaron los grupos</summary><p><strong>Otra forma de buscar para el taller de {tool.name}: compara grupos de profesores que configuran parecido.</strong> Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (empieza en No expuesto, el de la lista del taller)`} y abrir esa lista. Cada profesor cuenta en el grupo de su semestre anterior: el último que dictó antes de {period}{usualPrevious ? ` (para la mayoría, ${formatPeriod(usualPrevious)})` : ""}. Se usa el anterior porque el grupo de un semestre se arma con lo que configuró ese mismo semestre{TEXTS.forecastOrigin ? `; «Pronóstico», en cambio, usa el de ${formatPeriod(TEXTS.forecastOrigin)}, el semestre del que parte` : ""}.</p><p>Cada semestre que dicta (desde {SINCE}), un método de agrupación le asigna a cada profesor uno de 5 grupos según lo que configuró ese semestre en {builtFrom.map(t => t.name).join(", ").replace(/, ([^,]*)$/, " y $1")}: qué parte de sus aulas tiene cada una y cuántos elementos pone por aula. Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes.</p><p>{groupsFirst(true)}</p><details><summary>Ver detalle técnico</summary><p>El método arma 5 grupos; por eso se llama «K5».</p></details></details></div>
       <button className="button button-ghost" onClick={() => onMethod("grupos")}><Icon name="info"/>Guía: los grupos</button>
@@ -149,6 +150,7 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
             </button>)}
           </div>}
           {profile.length > 0 && <details className="muted subgroup-note group-profile"><summary>Qué configura cada grupo en {period} (toda la universidad)</summary><p className="scroll-hint">Desliza la tabla de lado para ver todas las herramientas.</p><div className="table-wrap" tabIndex={0} role="region" aria-label="Qué configura cada grupo"><table className="data-table"><thead><tr><th scope="col">Grupo</th>{builtFrom.map(t => <th scope="col" key={t.id}>{t.name}</th>)}</tr></thead><tbody>{profile.map(({ group, tools }) => <tr key={group.id}><th scope="row">{group.name}</th>{tools.map(({ tool: t, part }) => <td key={t.id}>{part.text}</td>)}</tr>)}</tbody></table></div><p>Parte de los profesores de cada grupo, en {period}, con cada herramienta configurada en al menos un aula (entre quienes tienen ese dato). Aquí el grupo es el de {period}, no el del semestre anterior.</p></details>}
+          {withBoth > 0 && <p className="stability"><span className="stability-figure">{pct(kept, withBoth)}</span><span><strong>¿Qué tan estables son?</strong> De {plural(withBoth, "profesor", "profesores")} con grupo en su semestre anterior y en {period}, {number(kept)} ({pct(kept, withBoth)}) siguen en el mismo grupo: {tenths(kept, withBoth)} de un semestre al siguiente.</span></p>}
           {withoutOrigin > 0 && <p className="muted subgroup-note">{plural(withoutOrigin, "profesor no tiene", "profesores no tienen")} un semestre anterior registrado desde {SINCE} (por ejemplo, porque {withoutOrigin === 1 ? "dicta" : "dictan"} por primera vez), así que no {withoutOrigin === 1 ? "tiene" : "tienen"} grupo y no {withoutOrigin === 1 ? "aparece" : "aparecen"} en estas barras.</p>}
           {(CIRCULAR.has(tool.id) || (!configOnly && activeState === "Adopta")) && <details className="muted subgroup-note"><summary>Cómo leer estos grupos</summary>
           {CIRCULAR.has(tool.id) && <p className="muted subgroup-note">Ojo al comparar: los grupos se armaron mirando qué herramientas configura cada profesor, {tool.id === "lockdown" || tool.id === "turnitin" ? `entre ellas cuestionarios y actividades, y ${tool.name} solo existe dentro de cuestionarios o actividades` : `entre ellas ${tool.name}`}. Por eso, parte de las diferencias entre grupos viene de cómo se armaron y no es un hallazgo nuevo.</p>}
@@ -159,7 +161,7 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
 
       <section ref={detail} tabIndex={-1} className="panel" aria-label="Detalle del grupo seleccionado">
         {selectedGroup ? <>
-          <SectionHeading eyebrow="Dentro del grupo · describe, no califica" title={selectedGroup.name} description={selectedGroup.description}/>
+          <SectionHeading eyebrow={chosen ? "Dentro del grupo · describe, no califica" : "Ejemplo, no una recomendación · toca un grupo para elegirlo"} title={selectedGroup.name} description={selectedGroup.description}/>
           <div className="panel-body">
             {!chosen && <p className="small">Se muestra como ejemplo el grupo con el porcentaje más alto; no es una recomendación. Toca otro grupo para verlo.</p>}
             <p className="muted">{plural(selectedRecords.length, "profesor", "profesores")} de este grupo · {tool.name} · {period} · {facultyText(filters.faculty)}</p>
@@ -221,7 +223,7 @@ export function orderFigures(toolId: string) {
 // The top fifth names its range, so it is not read as the «probabilidad alta» cut, which can give a similar figure.
 export function orderSentence(toolId: string) {
   const f = orderFigures(toolId);
-  return f ? `de la quinta parte con probabilidad más alta (de ${f.range}), la configuraron ${number(f.top)} de cada 100; en promedio, ${number(f.average)} (${number(f.positives)} de ${number(f.cases)}); en la quinta parte más baja, ${number(f.low)}.` : "";
+  return f ? `de la quinta parte con probabilidad más alta (de ${f.range}, en los semestres revisados), la configuraron ${number(f.top)} de cada 100; en promedio, ${number(f.average)} (${number(f.positives)} de ${number(f.cases)}); en la quinta parte más baja, ${number(f.low)}.` : "";
 }
 const ruleText = "una regla que le da a todos la misma probabilidad (la parte de profesores que la configuró antes)";
 

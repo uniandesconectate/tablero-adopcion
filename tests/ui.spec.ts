@@ -350,7 +350,8 @@ test("en una lista sin probabilidad el orden es por código y lo dice", async ({
   await openFile(page, "/?vista=profesores&herramienta=contenidos&estado=Usa");
   await expect(page.getByLabel("Ordenar por", { exact: true })).toHaveValue("code");
   await expect(page.getByText(/Aquí nadie tiene probabilidad: .* El orden es por código\./)).toBeVisible();
-  // With one state chosen, «Qué conversar» is said once above the table.
+  // With one state chosen, «Qué conversar» is said once above the table, folded with «Antes de marcar».
+  await page.locator(".order-why > summary").click();
   await expect(page.getByText("Qué conversar con quienes están en Usa:", { exact: true })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: /^Qué conversar/ })).toHaveCount(0);
   // A search that finds someone outside the probability filter says that person exists and why there is no probability.
@@ -474,6 +475,8 @@ test("con un cupo, la lista ofrece marcar a los primeros y avisa a quiénes deja
   await expect(page.locator("tbody tr[data-tied]")).toHaveCount(5);
   await expect(page.getByRole("checkbox", { name: /más que el cupo de 7$/ })).toBeVisible();
   await page.getByRole("button", { name: "Marcar a los primeros 5 (antes del empate)", exact: true }).click();
+  // To break the tie, the notice says how the people already marked spread over faculties and groups.
+  await expect(tie.locator(".tie-mix")).toContainText(/^Para desempatar, lo que ya marcaste \(5 personas\): \d+ facultad/);
   await page.getByRole("banner").getByRole("button", { name: "Convocatoria (5)", exact: true }).click();
   const selection = page.getByRole("dialog", { name: "Tu próxima convocatoria" });
   // One workshop: it opens by workshop, highest probability first.
@@ -521,8 +524,10 @@ test("al cambiar de página desde abajo, la nueva empieza arriba y en la lista c
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   // The list's group is the previous semester's, and the row says which one.
   await expect(page.locator("tbody .group-when").first()).toHaveText(/^\d{4}-[12]:$/);
-  // The decision before marking is one sentence next to the order it explains, not a separate box.
-  await expect(page.locator(".list-context .order-why")).toContainText("Antes de marcar:");
+  // The decision before marking is one folded line right above the table, not a separate box.
+  await expect(page.locator(".order-why > summary")).toContainText("Antes de marcar:");
+  const [why, table] = await Promise.all([page.locator(".order-why").boundingBox(), page.locator("table").first().boundingBox()]);
+  expect(why!.y).toBeLessThan(table!.y);
   await expect(page.locator(".callout.decision")).toHaveCount(0);
 });
 
@@ -536,7 +541,7 @@ test("en el Resumen, las listas se ven primero: caben con su botón en la primer
   const [card, metrics] = await Promise.all([page.locator(".list-card").first().boundingBox(), page.locator(".metrics-grid").boundingBox()]);
   expect(card!.y).toBeLessThan(metrics!.y);
   // Each card keeps its full sentence for screen readers and its detail one tap away.
-  await expect(page.getByRole("region", { name: "Para empezar a usarla" }).getByRole("button", { name: /^Ver a los \d+: no la han usado con estudiantes desde .* \(No expuesto\)$/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Para empezar a usarla" }).getByRole("button", { name: /^Ver a los \d+: ninguno de sus estudiantes la ha usado \(datos desde .*\) · estado «No expuesto»$/ })).toBeVisible();
   await expect(page.getByRole("region", { name: /^Quienes dejaron de usar / }).getByText("Ver detalle", { exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -577,7 +582,7 @@ test("el cupo se pregunta en el Resumen, cada lista dice si cabe y la lista lo c
   await expect(title).toBeFocused();
   expect(await title.evaluate(el => getComputedStyle(el).outlineStyle)).toBe("none");
   const first = page.getByRole("region", { name: "Para empezar a usarla" });
-  await expect(first).toContainText("Todos los que podrían ir.");
+  await expect(first).toContainText("Todos los que podrían ir: para un taller de primer acercamiento.");
   await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("2");
   await expect(first.locator(".list-card-fit")).toHaveText(/^Son más que el cupo de 2: toma a los primeros 2\.\s*$/);
   await first.locator(".button-primary").click();
@@ -588,7 +593,7 @@ test("el cupo se pregunta en el Resumen, cada lista dice si cabe y la lista lo c
 test("la barra de la convocatoria dice qué facultades faltan en la mezcla", async ({ page }) => {
   await openFile(page, "/?vista=profesores&herramienta=rubricas");
   for (const index of [0, 1]) await page.getByRole("checkbox", { name: `Seleccionar a ${await professorNameAt(page, index)}`, exact: true }).check();
-  await expect(page.locator(".selection-tray")).toContainText(/Mezcla de este taller: \d+ facultad(es)? de \d+(; faltan? [^·]+)? · \d+ de los \d+ grupos \(en \d{4}-[12]\)/);
+  await expect(page.locator(".selection-tray")).toContainText(/Mezcla de este taller: \d+ facultad(es)? de \d+(; faltan? [^·]+)? · \d+ de los \d+ grupos \(en su semestre anterior\)/);
 });
 
 test("en el Resumen, lo que respalda las listas se ve con título propio y la tarjeta de probabilidad alta dice si cambia la convocatoria", async ({ page }) => {
@@ -603,7 +608,41 @@ test("en el Resumen, lo que respalda las listas se ve con título propio y la ta
   await expect(page.getByText(/^Cada opción abre una lista/)).toBeHidden();
   await page.getByText("Ver más: cómo se cruzan las listas y cuál elegir", { exact: true }).click();
   await expect(page.getByText(/^Cada opción abre una lista/)).toBeVisible();
-  const high = page.getByRole("region", { name: "Para concentrarte en quienes probablemente empiecen" });
+  const high = page.getByRole("region", { name: "Para quienes probablemente empiecen" });
   await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("2");
   await expect(high.locator(".list-card-compare")).toHaveText(/entre los primeros 2 de la primera lista/);
+});
+
+test("en el Resumen, con un empate en el cupo, la tarjeta dice cuántos entran seguro", async ({ page }) => {
+  await page.goto("/?herramienta=rubricas");
+  await expect(startHeading(page)).toBeVisible();
+  await choose(page, await enlarged(5), changeFile(page));
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("7");
+  // Same cut as «Elegir profesores»: the first 5 are in, 2 places go to the tied people.
+  await expect(page.getByRole("region", { name: "Para empezar a usarla" }).locator(".list-card-fit")).toHaveText(/^Son más que el cupo de 7: entran seguro los primeros 5; los otros 2 lugares se eligen entre quienes empatan con [\d,]+\s%/);
+});
+
+test("los pasos 1 y 2 llevan a su pantalla", async ({ page }) => {
+  await openFile(page, "/?vista=profesores&herramienta=rubricas");
+  const steps = page.getByRole("list", { name: "Cómo armar una convocatoria, en 3 pasos" });
+  await steps.getByRole("button", { name: /Elige la lista/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^¿A quién invitar al taller de Rúbricas\?/ })).toBeVisible();
+  await steps.getByRole("button", { name: /Marca a quién invitar/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: /^Elige a quién invitar/ })).toBeVisible();
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+});
+
+test("con cupo, la lista avisa cuando los primeros pasan del corte de probabilidad alta", async ({ page }) => {
+  await openFile(page, "/?vista=profesores&herramienta=rubricas&estado=No+expuesto&probabilidad=Alta");
+  const count = async () => Number((await page.locator(".list-context h2").textContent())!.match(/^[\d.]+/)![0].replace(".", ""));
+  const high = await count();
+  await page.getByRole("button", { name: /^Cambiar filtros/ }).click();
+  await page.getByRole("combobox", { name: /^Probabilidad de configurarla/ }).selectOption("Todas");
+  expect(high).toBeGreaterThan(0);
+  expect(await count()).toBeGreaterThan(high + 1);
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill(String(high + 1));
+  await expect(page.locator(".high-cut")).toContainText(`Los primeros ${high} tienen probabilidad alta`);
+  await page.getByRole("button", { name: `Marcar solo a los ${high} de probabilidad alta`, exact: true }).click();
+  await expect(page.getByRole("banner").getByRole("button", { name: `Convocatoria (${high})`, exact: true })).toBeVisible();
+  await expect(page.locator(".high-cut")).toHaveCount(0);
 });
