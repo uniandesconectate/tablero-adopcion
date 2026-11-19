@@ -16,6 +16,7 @@ export const TEXTS = {
   badge: "Datos sintéticos",
   identity: "Identidad ficticia · Demostración",
   csv: "Datos sintéticos · no enviar como convocatoria real",
+  generated: null as string | null,
   selection: "Las identidades y datos son sintéticos.",
   estimate: "Estimación sintética.",
   estimates: "Probabilidades ilustrativas para quienes no tienen configuración registrada.",
@@ -27,6 +28,8 @@ export const TEXTS = {
   rules: ["Usa requiere dos periodos consecutivos con uso efectivo. Apropia exige además que la mediana del tramo activo supere un corte específico por herramienta. Los cortes son ilustrativos y deben validarse con Conecta-TE sobre observaciones con uso efectivo."],
   plainRules: (tool: Tool) => [`Usa: 2 semestres seguidos con uso con estudiantes. Apropia: además, superar un corte de intensidad ilustrativo de ${tool.threshold}. Son parámetros para probar el recorrido; requieren validación de Conecta-TE.`],
   unit: "de índice sintético",
+  unitHelp: "",
+  review: null as string | null,
   intensity: (threshold: number | null) => `Índice sintético · corte ${threshold}`,
   toolRule: (tool: Tool): [string, string] => ["Cómo se calcula esta demostración.", `Dos periodos consecutivos de uso efectivo confirman Usa. Apropia exige además superar un corte de intensidad ilustrativo de ${tool.threshold}. Estos parámetros permiten probar el recorrido; requieren validación de Conecta-TE.`],
   // Synthetic forecasts exist in every period; real ones only at the forecast origin.

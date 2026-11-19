@@ -41,11 +41,19 @@ const CONTRACTS: Record<string, string> = { catedra: "Cátedra", planta: "Planta
 const sinceStart = (text: string) => text.replace(/^(La tuvo en sus aulas en algún semestre anterior|No la ha tenido en sus aulas antes)\.$/, "$1 (desde 2020-2).");
 const aligned = (what: string, columns: unknown[][]) => { if (!columns.every(column => Array.isArray(column) && column.length === columns[0].length)) fail(`las columnas de ${what} no tienen el mismo largo.`); };
 
+// The exporter (produccion/modelo/adopcion/modelo.py, correr_modelo) learns from arrivals up to two semesters before the origin and reviews the next two.
+function reviewNote(periods: PeriodId[], arrivals: PeriodId[], target: PeriodId, trainedUntil: string): string | null {
+  const reviewed = [...new Set(arrivals)].sort();
+  const before = periods[periods.indexOf(reviewed[0]) - 1];
+  if (!reviewed.length || !before) return null;
+  return human(`Para la revisión se usó una versión del pronóstico que aprendió solo con los cambios hasta ${before}: no conocía lo que pasó en ${reviewed.join(" ni en ")}. Así, cada semestre revisado se comparó con un pronóstico que no lo había visto. Después, para pronosticar ${target}, se volvió a calcular con todo lo que hay hasta ${trainedUntil}.`);
+}
+
 /** Validates a tablero.json and builds the source the dashboard reads (data.ts). */
 export function buildRealSource(input: unknown) {
   const data = input as Contract;
   if (data?.contrato !== CONTRACT) fail(`no es un tablero.json del proceso de datos de Conecta-TE${typeof data?.contrato === "string" ? ", o es de una versión anterior" : ""}. (Para el equipo de datos: se esperaba el formato "${CONTRACT}"${typeof data?.contrato === "string" ? ` y este trae «${data.contrato}»` : ""}.)`);
-  for (const key of ["fuente", "periodos", "pronostico", "herramientas", "grupos", "profesores", "filas", "uso", "pronosticos", "perfil_siguiente", "validacion"] as const) if (data[key] == null) fail(`le falta una parte, así que está incompleto o viene de otro proceso. Descárgalo de nuevo. (Para el equipo de datos: falta la clave "${key}".)`);
+  for (const key of ["fuente", "periodos", "pronostico", "herramientas", "grupos", "profesores", "filas", "uso", "pronosticos", "perfil_siguiente", "validacion"] as const) if (data[key] == null) fail(`le falta una parte: está incompleto o viene de otro proceso. (Para el equipo de datos: falta la clave "${key}".)`);
   const { fuente, periodos, pronostico, herramientas, grupos, profesores, filas, uso, pronosticos, validacion } = data;
   const { modelo, reglas } = fuente;
   if (![fuente.etiqueta, fuente.generado, modelo?.nombre, modelo?.version, modelo?.entrenado_hasta, reglas?.uso_efectivo, reglas?.intensidad, reglas?.corte_apropia, reglas?.seguidos].every(text => typeof text === "string") || !Array.isArray(modelo.supuestos)) fail("faltan textos en fuente.modelo o fuente.reglas.");
@@ -128,9 +136,11 @@ export function buildRealSource(input: unknown) {
   const TEXTS = {
     badge: "Datos reales",
     identity: "Código seudónimo: no es el nombre · uso interno",
-    csv: `${fuente.etiqueta} · generado el ${fuente.generado}`,
-    selection: "Cada profesor aparece con su código seudónimo; los datos son de uso interno. Pendiente: el equipo definirá cómo pasar del código a la persona.",
-    estimate: `Versión del pronóstico: ${modelo.version}.`,
+    csv: `${fuente.etiqueta} · datos generados el ${fuente.generado}`,
+    /** Date the data team generated the file, shown next to its name. */
+    generated: fuente.generado as string | null,
+    selection: "Cada profesor aparece con su código seudónimo; los datos son de uso interno. Pendiente: el equipo de datos de Conecta-TE, el que prepara tablero.json, definirá cómo pasar del código a la persona; ese paso se le pide a ese equipo.",
+    estimate: `Pronóstico calculado con los datos generados el ${fuente.generado} (versión ${modelo.version}).`,
     estimates: human(`Probabilidades del modelo, con origen en ${pronostico.origen}, para quienes no tienen configuración registrada.`),
     model: human(`Modelo: ${modelo.nombre} · versión ${modelo.version} · entrenado hasta ${modelo.entrenado_hasta}. ${modelo.supuestos.join(" ")}`),
     modelPlain: human(`Con lo que cada profesor configuró en ${pronostico.origen} se estima qué hará la próxima vez que dicte; se supone que vuelve a dictar el semestre siguiente (${pronostico.destino}). El pronóstico aprendió de todos los cambios entre semestres hasta ${modelo.entrenado_hasta}. No usa datos de ${pronostico.destino}: se guardan para la prueba final.`),
@@ -145,6 +155,10 @@ export function buildRealSource(input: unknown) {
       human(`Apropia: además de usarla seguido, en sus semestres de uso pone de forma típica más ${reglas.intensidad} que 3 de cada 4 semestres con uso de todos los profesores (de ${periodos[0]} a ${pronostico.origen}).${tool.threshold === null ? "" : ` En ${tool.name} el corte es más de ${tool.threshold.toLocaleString("es-CO")} ${reglas.intensidad}, contando todas sus aulas.`} Es un corte provisional que debe validar Conecta-TE. Si se recalcula con más semestres, pueden cambiar estados del pasado.`),
     ],
     unit: reglas.intensidad,
+    // Meaning of «objetos» from the data documentation (pipeline_databricks/07_Documentacion.py, column c).
+    unitHelp: reglas.intensidad === "objetos por aula" ? "Objetos por aula: cuántos elementos de la herramienta tiene cada aula al cierre del semestre (cada tema, rúbrica, cuestionario, tema de debate o anuncio cuenta como uno)." : "",
+    /** Why the review is fair: the exporter reviews each arrival with a version that learned only from earlier ones. */
+    review: reviewNote(periodos, validacion.llegada, pronostico.destino, modelo.entrenado_hasta),
     intensity: (threshold: number | null) => threshold === null ? "Solo hay datos de configuración" : `En sus semestres seguidos de uso, contando todas sus aulas. Para Apropia: más de ${threshold.toLocaleString("es-CO")} (corte provisional, pendiente de validar por Conecta-TE).`,
     toolRule: (tool: Tool): [string, string] => tool.evidence === "configuracion"
       ? ["Solo hay datos de configuración.", `De ${tool.name} solo sabemos si está configurada: tenerla configurada no quiere decir que sus estudiantes la usen, así que no recibe estado.`]

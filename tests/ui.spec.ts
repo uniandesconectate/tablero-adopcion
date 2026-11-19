@@ -56,6 +56,8 @@ async function assertNoBodyOverflow(page: Page) {
 
 test("un agregado abre sus profesores y conserva el contexto al navegar atrás", async ({ page }) => {
   await openFile(page);
+  // The comparison between tools is a second level of the summary.
+  await page.getByText(/^Comparar con otras herramientas/).click();
   await page.locator(".state-filter", { hasText: "No expuesto" }).click();
   const aggregate = page.getByRole("button", { name: /^Rúbricas: \d+ de \d+ en No expuesto\. Ver profesores$/ });
   await expect(aggregate).toBeVisible();
@@ -85,8 +87,8 @@ test("la convocatoria conserva personas fuera de los filtros y después de recar
   for (const name of names) await page.getByRole("checkbox", { name: `Seleccionar a ${name}`, exact: true }).check();
   await expect(page.getByRole("banner").getByRole("button", { name: "Convocatoria (2)", exact: true })).toBeVisible();
   await page.getByLabel("Buscar profesor", { exact: true }).fill("ninguna-persona-coincide-98231");
-  await expect(page.getByRole("heading", { name: "No hay profesores con estos criterios" })).toBeVisible();
-  await expect(page.getByText("0 se ven en esta lista · 2 no se ven con los filtros actuales (siguen guardados)", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nadie con «ninguna-persona-coincide-98231» en esta lista" })).toBeVisible();
+  await expect(page.getByText("0 cumplen los filtros de esta lista (en esta u otras páginas) · 2 no se ven con los filtros actuales (siguen guardados)", { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(startHeading(page)).toBeVisible();
@@ -155,12 +157,16 @@ test("la lista de un taller abre en quienes aún no la usan, por probabilidad, y
   await expect(page.getByLabel("¿La tiene configurada en 2025-2?", { exact: true })).toHaveValue("no");
 });
 
-test("una búsqueda sin coincidencias permite restablecer la lista", async ({ page }) => {
+test("una búsqueda sin coincidencias lo dice y permite borrarla o restablecer la lista", async ({ page }) => {
   await openFile(page, "/?vista=profesores");
   const search = page.getByLabel("Buscar profesor", { exact: true });
   await search.fill("persona-inexistente-67258");
-  await expect(page.getByRole("heading", { name: "No hay profesores con estos criterios" })).toBeVisible();
-  await page.getByRole("button", { name: "Limpiar filtros de la lista", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Nadie con «persona-inexistente-67258» en esta lista" })).toBeVisible();
+  await expect(page.getByText(/búsqueda «persona-inexistente-67258»/)).toBeVisible();
+  await page.getByRole("button", { name: "Borrar la búsqueda", exact: true }).click();
+  await expect(search).toHaveValue("");
+  await search.fill("persona-inexistente-67258");
+  await page.locator(".empty-state").getByRole("button", { name: "Limpiar filtros de la lista", exact: true }).click();
   await expect(search).toHaveValue("");
   await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("Todos");
   await expect(page.locator("table tbody tr").first()).toBeVisible();
@@ -185,7 +191,10 @@ test("la validación aclara su objetivo y conserva la evaluación global al camb
   const initialEvaluation = await page.locator(".metrics-grid .metric-value").allTextContents();
   await facultySelect.selectOption("Todos");
   await expect(page.locator(".metrics-grid .metric-value")).toHaveText(initialEvaluation);
-  await page.getByRole("slider", { name: "Punto de corte para evaluar la predicción" }).focus();
+  // The cut starts where the rest of the dashboard says «probabilidad alta».
+  await expect(page.getByText("(el corte de «probabilidad alta»)", { exact: true })).toBeVisible();
+  await expect(page.locator(".validation-verdict")).toContainText("En pocas palabras:");
+  await page.getByRole("slider", { name: "Corte de probabilidad para esta revisión" }).focus();
   await page.keyboard.press("Home");
   await expect(page.getByText("De quienes la configuraron, habríamos señalado a", { exact: true }).locator("..").locator(".metric-value")).toHaveText("100 %");
   await page.getByText("¿Acierta más que una regla simple? (comparación y detalle de cálculo)", { exact: true }).click();
@@ -199,9 +208,9 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
   await openFile(page);
   const views = [
     ["Resumen", /^¿A quién invitar al taller de/],
-    ["Talleres y herramientas", /^Cómo está .* y a quién invitar a su taller$/],
+    ["Talleres y herramientas", /^.* por dentro: estados, cambios y pronóstico$/],
     ["Elegir profesores", /^Elige a quién invitar al taller de/],
-    ["Grupos parecidos", /^Busca por grupo a quién invitar/],
+    ["Grupos parecidos", /^Otra forma de buscar para el taller de/],
     ["Pronóstico", /^¿Quién podría configurar/],
   ] as const;
   for (const [label, heading] of views) {
@@ -237,7 +246,11 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   await expect(alert).toBeFocused();
   await expect(alert.getByText(/^Detalle para el equipo de datos$/)).toBeVisible();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: su contenido no es el de un tablero\.json/));
-  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from('{"contrato": "tabl') }, alert.getByText(/tablero\.json»: está cortado o dañado: parece que la descarga no terminó\. Descárgalo de nuevo\./));
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from('{"contrato": "tabl') }, alert.getByText(/tablero\.json»: está cortado o dañado: parece que la descarga no terminó\./));
+  // Each kind of problem has its own action: a cut download is downloaded again.
+  await expect(alert).toContainText("Qué hacer: Descárgalo de nuevo y elige el archivo nuevo.");
+  await choose(page, { name: "convocatoria.csv", mimeType: "text/csv", buffer: Buffer.from('"Profesor";"Código"') }, alert.getByText(/convocatoria\.csv»: es una lista \.csv/));
+  await expect(alert).toContainText("Qué hacer: Elige el archivo que se llama tablero.json");
   const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
   broken.uso.rubricas.efectiva.pop();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/tablero\.json»: tiene un error por dentro/));
@@ -266,7 +279,10 @@ test("Cambiar archivo vuelve a la pantalla inicial y el tablero se rehace con el
   const nav = page.getByRole("complementary", { name: "Navegación principal" });
   await expect(nav.getByRole("button", { name: /^Pronóstico 2026-1/ })).toBeVisible();
   await changeFile(page).click();
-  await expect(startHeading(page)).toBeVisible();
+  // The screen change is announced: the title says what to do and takes the focus.
+  const again = page.getByRole("heading", { level: 1, name: "Elige el archivo nuevo o vuelve al tablero." });
+  await expect(again).toBeFocused();
+  await expect(page.getByText(/datos hasta 2025-2, generados el /)).toBeVisible();
   await expect(nav).toHaveCount(0);
   // A mistaken tap goes back to the file that was open.
   await page.getByRole("button", { name: "Volver al tablero con el archivo que ya estaba abierto" }).click();
@@ -290,4 +306,97 @@ test("al recargar la página vuelve a pedir el archivo y no guarda sus datos", a
   expect(stored.session).toBe("{}");
   // `next dev` opens its own debug database; the app opens none.
   expect(stored.databases).toEqual([]);
+});
+
+/** The fixture with every professor copied `copies` times (new codes), so a list has more than one page. */
+async function enlarged(copies: number) {
+  const data = JSON.parse(await readFile(FIXTURE, "utf8"));
+  const people = data.profesores.id.length;
+  const copy = (columns: Record<string, unknown[]>, from: number, professor: number) => { for (const [key, column] of Object.entries(columns)) column.push(key === "profesor" ? professor : column[from]); };
+  for (let k = 1; k < copies; k++) for (let i = 0; i < people; i++) {
+    const professor = data.profesores.id.length;
+    data.profesores.id.push(`D-${(0x10000000 + k * 16 + i).toString(16)}`);
+    data.profesores.facultad.push(data.profesores.facultad[i]); data.profesores.contrato.push(data.profesores.contrato[i]);
+    const rows = data.filas.profesor.flatMap((owner: number, row: number) => owner === i ? [row] : []);
+    for (const row of rows) { copy(data.filas, row, professor); for (const use of Object.values(data.uso) as Record<string, unknown[]>[]) copy(use, row, professor); }
+    for (const at of data.pronosticos.profesor.flatMap((owner: number, j: number) => owner === i ? [j] : [])) copy(data.pronosticos, at, professor);
+    for (const at of data.perfil_siguiente.profesor.flatMap((owner: number, j: number) => owner === i ? [j] : [])) copy(data.perfil_siguiente, at, professor);
+  }
+  return { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(data)) };
+}
+
+test("el Resumen y Talleres abren la misma lista del taller", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  // The highlighted option of the summary is the workshop list, as «Armar la lista de este taller».
+  await page.locator(".hero-option.button-primary").click();
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  const fromSummary = page.url();
+  await navigate(page, "Talleres y herramientas");
+  await page.getByRole("button", { name: "Armar la lista de este taller" }).click();
+  await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
+  expect(page.url()).toBe(fromSummary);
+});
+
+test("en una lista sin probabilidad el orden es por código y lo dice", async ({ page }) => {
+  await openFile(page, "/?vista=profesores&herramienta=contenidos&estado=Usa");
+  await expect(page.getByLabel("Ordenar por", { exact: true })).toHaveValue("code");
+  await expect(page.getByText(/Aquí nadie tiene probabilidad: .* El orden es por código\./)).toBeVisible();
+  // With one state chosen, «Qué conversar» is said once above the table.
+  await expect(page.getByText("Qué conversar con quienes están en Usa:", { exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: /^Qué conversar/ })).toHaveCount(0);
+});
+
+test("marcar a toda la lista, el cupo por taller y el criterio viajan al archivo", async ({ page }) => {
+  await page.goto("/?vista=profesores&herramienta=rubricas");
+  await expect(startHeading(page)).toBeVisible();
+  await choose(page, await enlarged(5), changeFile(page));
+  const all = page.getByRole("button", { name: /^Marcar a los (\d+) de esta lista \(todas las páginas\)$/ });
+  const total = Number((await all.innerText()).match(/\d+/)![0]);
+  expect(total).toBeGreaterThan(10);
+  await expect(page.getByText(`Marcar a los 10 de esta página (de ${total})`, { exact: true })).toBeVisible();
+  await all.click();
+  await expect(page.getByRole("button", { name: `Desmarcar a los ${total} de esta lista`, exact: true })).toBeVisible();
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill(String(total - 2));
+  await expect(page.getByText(`Cupo de este taller: sobran 2 personas (${total} marcadas, cupo de ${total - 2})`, { exact: true })).toBeVisible();
+  await page.getByRole("banner").getByRole("button", { name: `Convocatoria (${total})`, exact: true }).click();
+  const selection = page.getByRole("dialog", { name: "Tu próxima convocatoria" });
+  // The quota is the same one, per workshop.
+  await expect(selection.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" })).toHaveValue(String(total - 2));
+  await expect(selection.getByText(/^Taller de Rúbricas: sobran 2 personas/)).toBeVisible();
+  await selection.getByLabel("Nota para el archivo (opcional)", { exact: true }).fill("desempate por facultad");
+  const downloadPromise = page.waitForEvent("download");
+  await selection.getByRole("button", { name: `Descargar lista (${total} profesores)`, exact: true }).click();
+  const csv = await readFile((await (await downloadPromise).path())!, "utf8");
+  const [header, first] = csv.replace(/^﻿/, "").trim().split(/\r?\n/);
+  expect(header).toContain('"Antecedente de la probabilidad";"Nota"');
+  expect(first).toContain("Elegido a mano en el tablero (Rúbricas: lista «Todos los estados · 2025-2»");
+  expect(first).toMatch(/datos generados el .+ · lista descargada el \d{4}-\d{2}-\d{2}/);
+  expect(first.endsWith('"desempate por facultad"')).toBe(true);
+});
+
+test("un semestre anterior se avisa arriba y deja volver al más reciente", async ({ page }) => {
+  await openFile(page, "/?vista=profesores");
+  await page.getByLabel("Semestre", { exact: true }).selectOption("202410");
+  const notice = page.locator(".old-period");
+  await expect(notice).toContainText("Estás mirando 2024-1, no 2025-2, el semestre más reciente.");
+  await notice.getByRole("button", { name: "Volver a 2025-2", exact: true }).click();
+  await expect(page.getByLabel("Semestre", { exact: true })).toHaveValue("202520");
+  await expect(notice).toHaveCount(0);
+});
+
+test("en móvil el menú toma el foco, Escape lo cierra y tocar un grupo muestra su detalle", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openFile(page);
+  const menu = page.getByRole("button", { name: "Abrir menú", exact: true });
+  await menu.click();
+  await expect(page.getByRole("complementary", { name: "Navegación principal" }).getByRole("button", { name: /^Resumen/ })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveAttribute("aria-expanded", "false");
+  await expect(menu).toBeFocused();
+  await expect(page).toHaveTitle("Resumen · Conecta-TE");
+  await navigate(page, "Grupos parecidos");
+  await page.locator(".group-card").first().click();
+  const detail = page.getByRole("region", { name: "Detalle del grupo seleccionado" });
+  await expect(detail).toBeFocused();
+  await expect(detail).toBeInViewport();
 });

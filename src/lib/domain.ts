@@ -218,6 +218,18 @@ export function formatProbability(p: number): string {
   const digits = value < 0.1 ? 1 : 0;
   return `${(value * 100).toLocaleString("es-CO", { minimumFractionDigits: digits, maximumFractionDigits: digits })}\u00a0%`;
 }
+/** What happened in the review to the cases of `band`: how many there were and how many configured the tool. */
+export function bandTrackRecord(toolId: ToolId, band: ProbabilityBand): { cases: number; started: number } {
+  const rows = VALIDATION_ROWS.filter(row => row.toolId === toolId && probabilityBandFor(toolId, row.probability) === band);
+  return { cases: rows.length, started: rows.filter(row => row.outcome).length };
+}
+/** How many of `records` had the tool configured in an earlier semester; the reasons come from the export's fixed sentences. */
+export function antecedents(records: TeacherToolRecord[]): { before: number; never: number } {
+  // shortcut: reads the exporter's wording («No la ha…» = never had it); move it to a field of the contract if the sentences change.
+  const known = records.filter(record => record.forecastReason);
+  const never = known.filter(record => /^No /.test(record.forecastReason!)).length;
+  return { before: known.length - never, never };
+}
 export function probabilityBandFor(toolId: ToolId, p: number): ProbabilityBand {
   const rate = habitualRate(toolId);
   return probabilityBand(shown(p), rate === null ? null : shown(rate));
@@ -286,10 +298,12 @@ function forecastText(record: TeacherToolRecord): string {
   return record.observation.configured ? `ya la tiene configurada en ${formatPeriod(record.period)}` : "sin probabilidad calculada (no es 0 %)";
 }
 
-export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFAULT_PERIOD): string {
+/** `criteria` keeps, per «professor:tool», the list each person was marked from; `note` goes in every row. */
+export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFAULT_PERIOD, { criteria = {}, note = "", date = new Date() }: { criteria?: Record<string, string>; note?: string; date?: Date } = {}): string {
   // The reason for each invitation travels with the file; the group stays out (its names are pending).
   const next = TEXTS.cleanTest ? `en ${formatPeriod(TEXTS.cleanTest)}` : "el semestre siguiente";
-  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente", "Por qué está en ese estado", "Qué conversar (sugerencia inicial)", `Probabilidad de configurarla ${next} (si vuelve a dictar, no mide si el taller le servirá)`];
+  const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente", "Por qué está en ese estado", "Qué conversar (sugerencia inicial)", `Probabilidad de configurarla ${next} (si vuelve a dictar, no mide si el taller le servirá)`, "Antecedente de la probabilidad", "Nota"];
+  const downloaded = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   // Professors in code order and tools in their fixed order, as the call dialog lists them.
   const rows = PROFESSORS.flatMap(professor => {
     const tools = TOOLS.filter(tool => selection[professor.id]?.includes(tool.id));
@@ -298,11 +312,14 @@ export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFA
     const at = lastTaughtPeriod(professor, period);
     const records = at ? tools.map(tool => getRecord(professor.id, tool.id, at)) : [];
     const perTool = (text: (record: TeacherToolRecord) => string) => at ? records.map(record => `${record.tool.name}: ${text(record)}`).join(" | ") : `no había dictado hasta ${formatPeriod(period)}`;
-    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), "Elegido a mano en el tablero; falta confirmar con el profesor que el taller le sirve", TEXTS.csv,
+    const lists = tools.filter(tool => criteria[`${professor.id}:${tool.id}`]).map(tool => `${tool.name}: ${criteria[`${professor.id}:${tool.id}`]}`);
+    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), `Elegido a mano en el tablero${lists.length ? ` (${lists.join(" | ")})` : ""}; falta confirmar con el profesor que el taller le sirve`, `${TEXTS.csv} · lista descargada el ${downloaded}`,
       perTool(plainReason),
-      // Configuration-only tools get no guidance (decision #13).
-      records.filter(record => record.tool.evidence !== "configuracion").map(record => `${record.tool.name}: ${GUIDANCE[record.state]}`).join(" | "),
-      perTool(forecastText)]];
+      // Configuration-only tools get no guidance (decision #13), and the cell says so instead of staying empty.
+      perTool(record => record.tool.evidence === "configuracion" ? "sin sugerencia (de esta herramienta solo hay datos de configuración)" : GUIDANCE[record.state]),
+      perTool(forecastText),
+      perTool(record => record.forecastReason ?? "—"),
+      note.trim()]];
   });
   return `\uFEFF${[header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n")}\r\n`;
 }

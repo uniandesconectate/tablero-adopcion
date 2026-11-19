@@ -82,7 +82,7 @@ test("the adapter keeps only taught semesters, in calendar order, and unknown va
 test("the adapter rejects a wrong contract version, duplicate ids and misaligned columns", () => {
   assert.throws(() => real.buildRealSource({ ...fixture, contrato: "tablero-adopcion/v1" }), /tablero-adopcion\/v2/, "only v2 is accepted");
   assert.throws(() => real.buildRealSource(null), /tablero-adopcion\/v2/);
-  assert.throws(() => real.buildRealSource({ ...fixture, uso: undefined }), /le falta una parte.*Descárgalo de nuevo/);
+  assert.throws(() => real.buildRealSource({ ...fixture, uso: undefined }), /le falta una parte: está incompleto o viene de otro proceso/);
   const duplicated = structuredClone(fixture);
   duplicated.profesores.id[1] = duplicated.profesores.id[0];
   assert.throws(() => real.buildRealSource(duplicated), /id repetido/);

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
-import { MIN_PROFESSORS, PERIODS, TEXTS, onSource } from "@/lib/data";
-import { GUIDANCE, formatDoubleRate, formatPeriod, formatProbability, habitualRate, number, plural, share } from "@/lib/domain";
+import { MIN_PROFESSORS, PERIODS, TEXTS, VALIDATION_ROWS, onSource } from "@/lib/data";
+import { GUIDANCE, bandTrackRecord, formatDoubleRate, formatPeriod, formatProbability, habitualRate, number, plural, share } from "@/lib/domain";
 import { CASE_LABELS, STATES, type AdoptionState, type Condition, type PeriodId, type ProbabilityBand, type TeacherToolRecord, type Tool, type ToolId } from "@/lib/types";
 
 export { number, plural };
@@ -58,7 +58,7 @@ onSource(() => {
   STATE_SHORT = {
     Adopta: `la usa por primera vez desde ${SINCE}`,
     Usa: "la usa semestre tras semestre",
-    Apropia: "la usa seguido y con más contenido que 3 de cada 4 semestres de uso",
+    Apropia: `la usa seguido y con más ${TEXTS.unit} que 3 de cada 4 semestres de uso`,
     "No expuesto": `no la ha usado con estudiantes desde ${SINCE}`,
     Abandona: "la dejó; puede retomarla",
     "Sin información": "probó y no siguió, la retomó o falta información",
@@ -66,7 +66,7 @@ onSource(() => {
   STATE_PLAIN = {
     Adopta: `Es el primer semestre en que sus estudiantes la usan desde ${SINCE}; aún no se sabe si seguirá.`,
     Usa: "Sus estudiantes la usan 2 o más semestres seguidos.",
-    Apropia: "La usa semestre tras semestre y pone más contenido por aula que 3 de cada 4 semestres de uso de todos los profesores.",
+    Apropia: `La usa semestre tras semestre y pone más ${TEXTS.unit} que 3 de cada 4 semestres de uso de todos los profesores.`,
     "No expuesto": `Ninguno de sus estudiantes la ha usado desde ${SINCE}. Puede haberla tenido configurada.`,
     Abandona: "La usó 2 o más semestres seguidos y después dejó de usarla. Puede retomarla.",
     "Sin información": "No tiene uno de los 5 estados.",
@@ -82,6 +82,16 @@ export function bandRange(toolId: ToolId, band: ProbabilityBand): string {
 }
 // A tool without a habitual rate has no relative cut to show next to the band name.
 export const bandText = (toolId: ToolId, band: ProbabilityBand) => TEXTS.relativeBands && habitualRate(toolId) !== null ? `${TEXTS.bands[band]} (${bandRange(toolId, band)})` : TEXTS.bands[band];
+/** What happened in the review to the cases of a band, so a probability is not read as a certainty; empty without a review. */
+export function trackSentence(toolId: ToolId, band: ProbabilityBand): string {
+  const { cases, started } = bandTrackRecord(toolId, band);
+  if (!cases) return "";
+  const periods = [...new Set(VALIDATION_ROWS.filter(row => row.toolId === toolId).map(row => formatPeriod(row.period)))].sort().join(" y ");
+  const per10 = Math.round(started / cases * 10);
+  return `En la revisión de ${periods}, de ${plural(cases, "caso", "casos")} con probabilidad «${TEXTS.bands[band].toLocaleLowerCase("es")}», ${number(started)} la configuraron: ${per10 < 1 ? "menos de 1" : `unos ${number(per10)}`} de cada 10.`;
+}
+/** Plain meaning of the words of the technical model text, which comes from the file as written. */
+export const MODEL_TERMS = "Palabras del texto técnico: «Markov con variables» es un método que estima a qué grupo pasará cada profesor la próxima vez que dicte, según su grupo actual y otros datos (su facultad, sus estudiantes, su historia); «modelo directo de herramientas» pasa de ese grupo probable a la probabilidad de configurar cada herramienta; «transiciones» son los pasos de un semestre al siguiente; «salto 1» quiere decir el semestre inmediatamente siguiente; «notebook 05» es el cuaderno de análisis del equipo donde se eligió este pronóstico.";
 /** Framework definitions, kept for the guide. */
 export const stateDescriptions: Record<AdoptionState, string> = {
   "No expuesto": "Sin uso efectivo en la historia observada.",
