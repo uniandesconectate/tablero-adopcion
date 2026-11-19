@@ -84,7 +84,7 @@ export default function Start() {
         {picker("Elegir el archivo", "button button-primary file-button")}
       </div>
       <p className="small muted" role="status">{reading && `Leyendo «${reading}»…`}</p>
-      <div className="start-privacy"><Icon name="info" size={17}/><div><p><strong>El archivo no se guarda:</strong> se lee solo en este navegador y no se sube a ningún servidor. Al recargar o cerrar la página, el tablero lo vuelve a pedir.</p><p><strong>Tu convocatoria sí se guarda en este navegador:</strong> la lista de personas que marques para invitar a un taller (sus códigos y talleres), hasta que la vacíes.</p></div></div>
+      <div className="start-privacy"><Icon name="info" size={17}/><div><p><strong>El archivo no se guarda:</strong> se lee solo en este navegador y no se sube a ningún servidor. Al recargar o cerrar la página, el tablero lo vuelve a pedir.</p><p><strong>Tu convocatoria sí se guarda en este navegador:</strong> la lista de personas que marques para invitar a un taller (sus códigos y talleres), hasta que la vacíes. Es lo único que este navegador recuerda.</p></div></div>
     </section>
   </main>;
 }

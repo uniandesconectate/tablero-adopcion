@@ -880,13 +880,14 @@ tr[data-tied] { background: #fbf1d4; }
   .hero-orbit, .hero-card::after { display: none; }
   .topbar-guide { width: auto; padding: 0 10px; }
   .topbar-guide > span { display: inline; }
-  .change-file { width: 44px; padding: 0; justify-content: center; }
-  .change-file > span { display: none; }
   .topbar-guide, .change-file, .selection-button { min-height: 44px; }
   .list-actions { justify-content: space-between; }
   .data-table th.checkbox-cell { min-width: 0; }
   .selection-tray .tray-detail { font-size: 11px; }
 }
+/* Phones: the menu button keeps its room; on short rows «Guía» and «Cambiar archivo» put their words under the icon instead of hiding them. */
+@media (max-width: 760px) { .topbar .breadcrumbs { min-width: 44px; } }
+@media (max-width: 479px) { .topbar-guide, .change-file { flex-direction: column; gap: 2px; padding: 4px 6px; white-space: normal; line-height: 1.1; text-align: center; } }
 @media (min-width: 761px) { .workshop-line.is-help-only { flex-basis: auto; } }
 .filters-toggle { display: none; }
 @media (max-width: 760px) {
