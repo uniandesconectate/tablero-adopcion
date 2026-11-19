@@ -336,8 +336,8 @@ async function enlarged(copies: number) {
 
 test("el Resumen y Talleres abren la misma lista del taller", async ({ page }) => {
   await openFile(page, "/?herramienta=rubricas");
-  // The highlighted option of the summary is the workshop list, as «Armar la lista de este taller».
-  await page.locator(".hero-option.button-primary").click();
+  // The highlighted card of the summary is the workshop list, as «Armar la lista de este taller».
+  await page.locator(".list-card .button-primary").click();
   await expect(page.getByLabel("Estado en Rúbricas (2025-2)", { exact: true })).toHaveValue("No expuesto");
   const fromSummary = page.url();
   await navigate(page, "Talleres y herramientas");
@@ -526,15 +526,45 @@ test("al cambiar de página desde abajo, la nueva empieza arriba y en la lista c
   await expect(page.locator(".callout.decision")).toHaveCount(0);
 });
 
-test("en el Resumen, el orden de lectura es el que se ve: la tarjeta de listas va antes de los pasos", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
+test("en el Resumen, las listas se ven primero: caben con su botón en la primera pantalla", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await openFile(page);
-  const before = await page.evaluate(() => {
-    const option = document.querySelector(".hero-option.button-primary")!;
-    const steps = [...document.querySelectorAll("summary")].find(el => el.textContent?.startsWith("Cómo armar una convocatoria"))!;
-    return Boolean(option.compareDocumentPosition(steps) & Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-  expect(before).toBe(true);
-  const [option, steps] = await Promise.all([page.locator(".hero-option.button-primary").boundingBox(), page.getByText("Cómo armar una convocatoria, en 3 pasos").boundingBox()]);
-  expect(option!.y).toBeLessThan(steps!.y);
+  const buttons = page.locator(".list-card-go");
+  expect(await buttons.count()).toBeGreaterThanOrEqual(2);
+  for (const box of await buttons.evaluateAll(els => els.map(el => el.getBoundingClientRect().bottom))) expect(box).toBeLessThanOrEqual(900);
+  // The list cards are read before the tool's figures.
+  const [card, metrics] = await Promise.all([page.locator(".list-card").first().boundingBox(), page.locator(".metrics-grid").boundingBox()]);
+  expect(card!.y).toBeLessThan(metrics!.y);
+  // Each card keeps its full sentence for screen readers and its detail one tap away.
+  await expect(page.getByRole("region", { name: "Para empezar a usarla" }).getByRole("button", { name: /^Ver a los \d+: no la han usado con estudiantes desde .* \(No expuesto\)$/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Quienes dejaron de usar / }).getByText("Ver detalle", { exact: true })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("combobox", { name: "Herramienta", exact: true })).toBeHidden();
+  // The example file adds a «pocos profesores» notice above; with the real file the first button ends near y≈745.
+  const first = await page.locator(".list-card").first().boundingBox();
+  expect(first!.y).toBeLessThan(844 * .8);
+  // On a phone «Qué estás mirando» is one line; «Cambiar» opens the same selectors.
+  await page.getByRole("button", { name: /^Rúbricas · .*Cambiar$/ }).click();
+  await expect(page.getByRole("combobox", { name: "Herramienta", exact: true })).toBeVisible();
+});
+
+test("la franja de pasos dice cuántos van marcados y su paso 3 abre la convocatoria", async ({ page }) => {
+  await openFile(page, "/?vista=profesores&herramienta=rubricas");
+  const steps = page.getByRole("list", { name: "Cómo armar una convocatoria, en 3 pasos" });
+  await expect(steps.locator("li[aria-current=step]")).toHaveText(/Marca a quién invitar/);
+  const name = await professorNameAt(page, 0);
+  await page.getByRole("checkbox", { name: `Seleccionar a ${name}`, exact: true }).check();
+  await steps.getByRole("button", { name: /^Revisa y descarga\s*1 marcado$/ }).click();
+  await expect(page.getByRole("dialog", { name: "Tu próxima convocatoria" })).toBeVisible();
+});
+
+test("el aviso de empate se lee como una sola frase", async ({ page }) => {
+  await page.goto("/?vista=profesores&herramienta=rubricas");
+  await expect(startHeading(page)).toBeVisible();
+  // Four copies of each of the 3 people: places 10 to 12 share a probability, across the page cut.
+  await choose(page, await enlarged(4), changeFile(page));
+  const bold = page.locator(".callout p > strong", { hasText: /en la página siguiente$/ });
+  await expect(bold).toBeVisible();
+  expect(await bold.evaluate(el => getComputedStyle(el).display)).toBe("inline");
 });
