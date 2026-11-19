@@ -143,9 +143,9 @@ export function buildRealSource(input: unknown) {
     estimate: `Pronóstico calculado con los datos generados el ${fuente.generado} (versión ${modelo.version}).`,
     estimates: human(`Probabilidades del modelo, con origen en ${pronostico.origen}, para quienes no tienen configuración registrada.`),
     model: human(`Modelo: ${modelo.nombre} · versión ${modelo.version} · entrenado hasta ${modelo.entrenado_hasta}. ${modelo.supuestos.join(" ")}`),
-    modelPlain: human(`Con lo que cada profesor configuró en ${pronostico.origen} se estima qué hará la próxima vez que dicte; se supone que vuelve a dictar el semestre siguiente (${pronostico.destino}). El pronóstico aprendió de todos los cambios entre semestres hasta ${modelo.entrenado_hasta}. No usa datos de ${pronostico.destino}: se guardan para la prueba final.`),
+    modelPlain: human(`Con lo que cada profesor configuró en ${pronostico.origen} se estima qué hará la próxima vez que dicte; se supone que vuelve a dictar el semestre siguiente (${pronostico.destino}). El pronóstico aprendió de todos los cambios entre semestres hasta ${modelo.entrenado_hasta}. No usa datos de ${pronostico.destino}: se guardan aparte para la prueba final, que comprobará a ciegas si el pronóstico acertó.`),
     groupsOrigin: "Los 5 grupos los formó Lina, del equipo del proyecto, juntando a profesores que configuran herramientas parecidas (un método que arma 5 grupos; por eso «K5»).",
-    method: "Este prototipo usa datos reales de Brightspace; cada profesor aparece con un código seudónimo.",
+    method: "Este prototipo usa datos reales de Bloque Neón (la plataforma Brightspace de la universidad); cada profesor aparece con un código seudónimo.",
     rulesTitle: "Reglas de este tablero (provisionales)",
     rules: [reglas.uso_efectivo, `Usa requiere ${reglas.periodos_seguidos} semestres seguidos con uso efectivo. ${reglas.seguidos}`, human(reglas.corte_apropia), `${configurationOnly.join(", ")}: solo hay datos de configuración, así que no reciben un estado del marco.`],
     /** The same rules in plain words, for the first level. */

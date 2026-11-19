@@ -254,7 +254,7 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   // Each kind of problem has its own action: a cut download is downloaded again.
   await expect(alert).toContainText("Qué hacer: Descárgalo de nuevo y elige el archivo nuevo.");
   await choose(page, { name: "convocatoria.csv", mimeType: "text/csv", buffer: Buffer.from('"Profesor";"Código"') }, alert.getByText(/convocatoria\.csv»\. Es una lista \.csv/));
-  await expect(alert).toContainText("Qué hacer: Elige el archivo que se llama tablero.json");
+  await expect(alert).toContainText("Qué hacer: Este tablero no abre listas .csv. Elige el archivo que se llama tablero.json");
   const broken = JSON.parse(await readFile(FIXTURE, "utf8"));
   broken.uso.rubricas.efectiva.pop();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(broken)) }, alert.getByText(/tablero\.json»\. Tiene un error por dentro/));
@@ -479,4 +479,59 @@ test("con un cupo, la lista ofrece marcar a los primeros y avisa a quiénes deja
   // One workshop: it opens by workshop, highest probability first.
   await expect(selection.getByRole("button", { name: "Por taller", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(selection.getByText("5 profesores", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  // Filling the 2 places among the tied people ends the request to choose, and their reason says it was a tie-break.
+  const tied = page.locator("tbody tr[data-tied] input[type=checkbox]");
+  await tied.nth(0).check();
+  await tied.nth(1).check();
+  await expect(tie).toContainText(/Cupo completo:\s*marcaste a los primeros 5 y a 2 de las 5 personas con/);
+  // The request to choose stays, folded, one tap away.
+  await expect(tie.getByText(/Para los 2 lugares que quedan, elige 2/)).toBeHidden();
+  await page.getByRole("banner").getByRole("button", { name: "Convocatoria (7)", exact: true }).click();
+  // The mix of faculties and groups shows before downloading.
+  await expect(selection.locator(".mix-line")).toContainText(/^Mezcla: 7 personas de \d+ facultad/);
+  const downloadPromise = page.waitForEvent("download");
+  await selection.getByRole("button", { name: "Descargar lista (7 profesores)", exact: true }).click();
+  const csv = await readFile((await (await downloadPromise).path())!, "utf8");
+  expect(csv.split(/\r?\n/).filter(line => line.includes("desempate: 2 lugares entre 5 personas con"))).toHaveLength(2);
+});
+
+test("en el teléfono, un error de archivo toma el foco y deja a la vista el botón para elegir otro", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  const alert = page.getByRole("alert").filter({ hasText: "No pudimos abrir" });
+  const old = JSON.parse(await readFile(FIXTURE, "utf8"));
+  old.contrato = "tablero-adopcion/v1";
+  await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(old)) }, alert);
+  await expect(alert).toBeFocused();
+  // An older file is the right one in an old format: the advice asks for a new one first.
+  await expect(alert).toContainText("Qué hacer: Pídele al equipo de datos de Conecta-TE un archivo nuevo");
+  await expect(page.locator(".file-button")).toBeInViewport();
+});
+
+test("al cambiar de página desde abajo, la nueva empieza arriba y en la lista cada grupo dice su semestre", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  await page.mouse.wheel(0, 2000);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(200);
+  await navigate(page, "Elegir profesores");
+  await expect(page.getByRole("heading", { level: 1, name: /^Elige a quién invitar/ })).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  // The list's group is the previous semester's, and the row says which one.
+  await expect(page.locator("tbody .group-when").first()).toHaveText(/^\d{4}-[12]:$/);
+  // The decision before marking is one sentence in the workshop band, not a separate box.
+  await expect(page.locator(".workshop-band")).toContainText("Antes de marcar:");
+  await expect(page.locator(".callout.decision")).toHaveCount(0);
+});
+
+test("en el Resumen, el orden de lectura es el que se ve: la tarjeta de listas va antes de los pasos", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openFile(page);
+  const before = await page.evaluate(() => {
+    const option = document.querySelector(".hero-option.button-primary")!;
+    const steps = [...document.querySelectorAll("summary")].find(el => el.textContent?.startsWith("Cómo armar una convocatoria"))!;
+    return Boolean(option.compareDocumentPosition(steps) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(before).toBe(true);
+  const [option, steps] = await Promise.all([page.locator(".hero-option.button-primary").boundingBox(), page.getByText("Cómo armar una convocatoria, en 3 pasos").boundingBox()]);
+  expect(option!.y).toBeLessThan(steps!.y);
 });

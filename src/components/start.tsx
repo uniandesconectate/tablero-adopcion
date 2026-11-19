@@ -12,6 +12,8 @@ const TECHNICAL = " (Para el equipo de datos: ";
 const ASK = "Pídele al equipo de datos de Conecta-TE un archivo nuevo y envíale este mensaje (botón «Copiar el mensaje»).";
 const AGAIN = "Descárgalo de nuevo y elige el archivo nuevo. Si vuelve a pasar, pídele al equipo de datos de Conecta-TE que te lo envíe otra vez.";
 const OTHER = "Elige el archivo que se llama tablero.json, el que te dio el equipo de datos de Conecta-TE.";
+/** «2026-11-18» → «18 de noviembre de 2026»; any other text stays as it is. */
+const inWords = (date: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" }) : date; };
 interface Problem { title: string; todo: string; detail: string }
 /** Why a file is not a valid tablero.json, what to do about it (one action per kind of problem) and the detail for the data team. */
 function reason(error: unknown, text: string, name: string): [string, string, string] {
@@ -19,7 +21,8 @@ function reason(error: unknown, text: string, name: string): [string, string, st
     if (!text.trim()) return ["está vacío.", AGAIN, ""];
     if (text.trimStart().startsWith("{")) return ["está cortado o dañado: parece que la descarga no terminó.", AGAIN, ""];
     // The call list this dashboard downloads is a .csv: the likeliest mix-up.
-    return [/\.csv$/i.test(name) ? "es una lista .csv, como la convocatoria que descarga este tablero, no un tablero.json." : "su contenido no es el de un tablero.json.", `${OTHER} Si ya elegiste ese y el mensaje sigue, pídele a ese equipo un archivo nuevo y envíale este mensaje (botón «Copiar el mensaje»).`, ""];
+    if (/\.csv$/i.test(name)) return ["es una lista .csv, como la convocatoria que descarga este tablero, no un tablero.json.", `Este tablero no abre listas .csv. ${OTHER}`, ""];
+    return ["su contenido no es el de un tablero.json.", `${OTHER} Si ya elegiste ese y el mensaje sigue, pídele a ese equipo un archivo nuevo y envíale este mensaje (botón «Copiar el mensaje»).`, ""];
   }
   if (!(error instanceof Error) || !error.message.startsWith(PREFIX)) return ["no tiene la estructura de tablero.json.", ASK, ""];
   const message = error.message.slice(PREFIX.length);
@@ -27,7 +30,8 @@ function reason(error: unknown, text: string, name: string): [string, string, st
   // Messages without a plain part are only for the data team.
   if (cut < 0) return ["tiene un error por dentro y el tablero no lo puede leer.", ASK, message];
   const plain = message.slice(0, cut);
-  const todo = plain.startsWith("no es un tablero.json") ? `${OTHER} Si estás seguro de que elegiste el que te dio ese equipo, pídele uno nuevo y envíale este mensaje (botón «Copiar el mensaje»).` : plain.startsWith("le falta una parte") ? `Descárgalo de nuevo. Si sigue igual, ${ASK.replace(/^P/, "p")}` : ASK;
+  // An older tablero.json is the right file in an old format: the way out is a new one.
+  const todo = plain.includes("versión anterior") ? `Pídele al equipo de datos de Conecta-TE un archivo nuevo: este tablero.json es de una versión anterior que el tablero ya no lee. Envíale este mensaje (botón «Copiar el mensaje»).` : plain.startsWith("no es un tablero.json") ? `${OTHER} Si estás seguro de que elegiste el que te dio ese equipo, pídele uno nuevo y envíale este mensaje (botón «Copiar el mensaje»).` : plain.startsWith("le falta una parte") ? `Descárgalo de nuevo. Si sigue igual, ${ASK.replace(/^P/, "p")}` : ASK;
   return [plain, todo, message.slice(cut + TECHNICAL.length).replace(/\)$/, "")];
 }
 
@@ -41,9 +45,15 @@ export default function Start() {
   const [copied, setCopied] = useState(false);
   const [over, setOver] = useState(false);
   const alert = useRef<HTMLDivElement>(null);
+  const dropZone = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  // The message lands where the eyes are: focus also scrolls it into view.
-  useEffect(() => { if (error) alert.current?.focus(); }, [error]);
+  // The message lands where the eyes are, with the picker below it in view too when both fit (phones).
+  useEffect(() => {
+    if (!error || !alert.current) return;
+    alert.current.focus({ preventScroll: true });
+    dropZone.current?.scrollIntoView({ block: "end", behavior: "instant" });
+    if (alert.current.getBoundingClientRect().top < 0) alert.current.scrollIntoView({ block: "start", behavior: "instant" });
+  }, [error]);
   // Back from the dashboard, the screen change is announced by moving the focus to its title.
   useEffect(() => { if (!open && loaded) heading.current?.focus(); }, [open, loaded]);
   const load = async (file: File | undefined) => {
@@ -53,7 +63,7 @@ export default function Start() {
     try {
       text = await file.text();
       setSource(buildRealSource(JSON.parse(text)));
-      setOpen(true); setLoaded({ name: file.name, about: `datos hasta ${formatPeriod(DEFAULT_PERIOD)}${TEXTS.generated ? `, generados el ${TEXTS.generated}` : ""}` });
+      setOpen(true); setLoaded({ name: file.name, about: `datos hasta ${formatPeriod(DEFAULT_PERIOD)}${TEXTS.generated ? `, generados el ${inWords(TEXTS.generated)}` : ""}` });
     } catch (problem) {
       const [plain, todo, detail] = reason(problem, text, file.name);
       // A period after the name keeps one colon at most in the title.
@@ -63,7 +73,7 @@ export default function Start() {
   };
   const copy = async () => {
     if (!error) return;
-    try { await navigator.clipboard.writeText(`${error.title}${error.detail ? `\n${error.detail}` : ""}`); setCopied(true); } catch { /* Without clipboard access the message stays on screen to copy by hand. */ }
+    try { await navigator.clipboard.writeText(`${error.title}\nQué hacer: ${error.todo}${error.detail ? `\n${error.detail}` : ""}`); setCopied(true); } catch { /* Without clipboard access the message stays on screen to copy by hand. */ }
   };
   const picker = (label: string, className: string) => <label className={className}>{label}<input className="sr-only" type="file" accept=".json,application/json" onChange={event => { load(event.target.files?.[0]); event.target.value = ""; }}/></label>;
   const drop = (event: DragEvent) => { event.preventDefault(); setOver(false); load(event.dataTransfer.files[0]); };
@@ -73,12 +83,12 @@ export default function Start() {
       <div className="brand"><span className="brand-symbol" aria-hidden="true"><span/><span/><span/><span/></span><span className="brand-text">Conecta<span>—</span>TE<small className="brand-subtitle">Universidad de los Andes</small></span></div>
       <p className="eyebrow">Adopción y acompañamiento</p>
       <h1 ref={heading} tabIndex={-1}>{loaded ? "Elige el archivo nuevo o vuelve al tablero." : "Abre el archivo del semestre para empezar."}</h1>
-      {loaded && <div className="callout start-open"><Icon name="info"/><div><p>Ya tienes abierto <strong>«{loaded.name}»</strong> ({loaded.about}). Si eliges otro archivo, reemplaza a este; si el nuevo tiene un error, este sigue abierto. Tu convocatoria se mantiene para las personas que estén en el archivo nuevo.</p><button className="button button-secondary" onClick={() => setOpen(true)}>Volver al tablero con el archivo que ya estaba abierto <Icon name="arrow" size={15}/></button></div></div>}
-      <p className="page-description">El tablero se arma con <strong>tablero.json</strong>, el archivo con el uso de las herramientas de Bloque Neón de cada profesor, semestre a semestre.</p>
+      {loaded && <div className="callout start-open"><Icon name="info"/><div><p>Ya tienes abierto <strong>«{loaded.name}»</strong> ({loaded.about}). Si eliges otro archivo, reemplaza a este; si el nuevo tiene un error, este sigue abierto. Tu convocatoria se mantiene para las personas que estén en el archivo nuevo; quienes no estén en él salen de la convocatoria.</p>{!error && <button className="button button-secondary" onClick={() => setOpen(true)}>Volver al tablero con el archivo que ya estaba abierto <Icon name="arrow" size={15}/></button>}</div></div>}
+      <p className="page-description">El tablero se arma con <strong>tablero.json</strong>, el archivo con el uso de las herramientas de Bloque Neón (la plataforma Brightspace de la universidad) de cada profesor, semestre a semestre.</p>
       <p className="page-description">Lo prepara cada semestre el equipo de datos de Conecta-TE. Si no lo tienes, pídeselo a ese equipo.</p>
       <details className="context-help start-origin"><summary>¿De dónde sale este archivo?</summary><p>Lo genera el proceso de datos de Conecta-TE en Databricks, la plataforma donde ese equipo procesa los datos de Bloque Neón. Trae, por profesor y semestre, qué herramientas tiene configuradas y si sus estudiantes las usan, con un código seudónimo en lugar del nombre.</p></details>
       {error && <div ref={alert} tabIndex={-1} className="callout is-error" role="alert"><Icon name="info"/><div><strong>{error.title}</strong><p>Qué hacer: {error.todo}</p><div className="heading-links">{loaded && <button className="button button-secondary" onClick={() => setOpen(true)}>Volver al tablero (sigue abierto «{loaded.name}»)</button>}<button className="text-link" onClick={copy}>{copied ? "Mensaje copiado" : "Copiar el mensaje"}</button></div><p className="small">Para probar con otro archivo, usa «Elegir el archivo», aquí abajo.</p>{error.detail && <details><summary>Detalle para el equipo de datos</summary><p>{error.detail}</p></details>}</div></div>}
-      <div className="drop-zone" data-over={over || undefined}>
+      <div ref={dropZone} className="drop-zone" data-over={over || undefined}>
         <Icon name="upload" size={26}/>
         <p><strong>Tu archivo: tablero.json</strong><span className="file-alias">puede llamarse distinto, por ejemplo «tablero (1).json»</span><span className="drag-hint">o arrástralo a este recuadro</span></p>
         {picker("Elegir el archivo", "button button-primary file-button")}

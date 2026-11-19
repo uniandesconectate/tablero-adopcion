@@ -46,6 +46,8 @@ export let SINCE = "";
 /** The forecast target is the held-out semester. */
 export let TARGET: PeriodId | null = null;
 export let nextTerm = "";
+/** Why the forecast target can be a semester that is already over. */
+export let targetNote = "";
 /** Short phrase that goes next to each state name everywhere. */
 export let STATE_SHORT = {} as Record<AdoptionState, string>;
 /** Plain definition of each state. */
@@ -55,6 +57,7 @@ onSource(() => {
   SINCE = formatPeriod(PERIODS[0]);
   TARGET = TEXTS.cleanTest;
   nextTerm = TARGET ? `en ${formatPeriod(TARGET)}` : "el semestre siguiente";
+  targetNote = TARGET ? `¿Por qué ${formatPeriod(TARGET)}? Este archivo llega hasta ${formatPeriod(PERIODS.at(-1)!)}, el semestre del que parte el pronóstico. Lo que pasó en ${formatPeriod(TARGET)} se guarda aparte para comprobar después, a ciegas, si el pronóstico acertó; por eso el pronóstico puede ser para un semestre que ya terminó.` : "";
   STATE_SHORT = {
     Adopta: `la usa por primera vez desde ${SINCE}`,
     Usa: "la usa semestre tras semestre",
@@ -87,8 +90,17 @@ export function trackSentence(toolId: ToolId, band: ProbabilityBand): string {
   const { cases, started } = bandTrackRecord(toolId, band);
   if (!cases) return "";
   const periods = [...new Set(VALIDATION_ROWS.filter(row => row.toolId === toolId).map(row => formatPeriod(row.period)))].sort().join(" y ");
-  const per10 = Math.round(started / cases * 10);
-  return `En la revisión de ${periods}, de ${plural(cases, "caso", "casos")} con probabilidad «${TEXTS.bands[band].toLocaleLowerCase("es")}», ${number(started)} la configuraron: ${per10 < 1 ? "menos de 1" : `unos ${number(per10)}`} de cada 10.`;
+  return `En la revisión de ${periods}, de ${plural(cases, "caso", "casos")} con probabilidad «${TEXTS.bands[band].toLocaleLowerCase("es")}», ${number(started)} la configuraron: ${per100(started, cases)} de cada 100.`;
+}
+/** «unos 30», or «menos de 1», out of each 100. */
+const per100 = (n: number, total: number) => { const k = Math.round(n / total * 100); return k < 1 ? "menos de 1" : `unos ${number(k)}`; };
+/** What «lo habitual» means, in plain words; empty for a tool without a habitual rate. */
+export function habitualPlain(toolId: ToolId, short = false): string {
+  const rate = habitualRate(toolId);
+  if (rate === null) return "";
+  const k = Math.round(rate * 100);
+  const some = k < 1 ? "menos de 1" : `unos ${number(k)}`;
+  return short ? `${some} de cada 100 la configuraron la vez siguiente` : `de cada 100 profesores que no la tenían configurada, ${some} la configuraron la siguiente vez que dictaron`;
 }
 /** When «más del doble» and «entre lo habitual y el doble» hit alike in the review, the cut orders but does not split two different groups. */
 export function bandsAlike(toolId: ToolId): string {
@@ -96,7 +108,7 @@ export function bandsAlike(toolId: ToolId): string {
   if (!high.cases || !middle.cases) return "";
   const [a, b] = [high, middle].map(row => Math.round(row.started / row.cases * 10));
   if (a !== b) return "";
-  return `Ojo con el corte: en la revisión, «${TEXTS.bands.Alta.toLocaleLowerCase("es")}» y «${TEXTS.bands.Media.toLocaleLowerCase("es")}» acertaron parecido (unos ${number(a)} de cada 10 la configuraron en los dos). El corte sirve para ordenar, no separa dos grupos muy distintos.`;
+  return `Ojo con el corte: en la revisión, «${TEXTS.bands.Alta.toLocaleLowerCase("es")}» y «${TEXTS.bands.Media.toLocaleLowerCase("es")}» acertaron parecido (la configuraron ${per100(high.started, high.cases)} y ${per100(middle.started, middle.cases)} de cada 100: ${number(high.started)} de ${number(high.cases)} y ${number(middle.started)} de ${number(middle.cases)}). El corte sirve para ordenar, no separa dos grupos muy distintos.`;
 }
 /** Plain meaning of the words of the technical model text, which comes from the file as written. */
 export const MODEL_TERMS = "Palabras del texto técnico: «Markov con variables» es un método que estima a qué grupo pasará cada profesor la próxima vez que dicte, según su grupo actual y otros datos (su facultad, sus estudiantes, su historia); «modelo directo de herramientas» pasa de ese grupo probable a la probabilidad de configurar cada herramienta; «transiciones» son los pasos de un semestre al siguiente; «salto 1» quiere decir el semestre inmediatamente siguiente; «notebook 05» es el cuaderno de análisis del equipo donde se eligió este pronóstico.";
@@ -149,7 +161,7 @@ export function StateBars({ records, onSelect, compact = false }: { records: Tea
       const n = count([state]);
       const part = share(n, evaluated);
       const firstTime = state === "Adopta" || state === "No expuesto" ? records.filter(r => r.state === state && r.taughtSemesters === 1).length : 0;
-      const content = <><span className="bar-label"><span className="state-dot" data-state={state}/><span>{state}{!compact && <small>{STATE_SHORT[state]}</small>}</span></span><span className="bar-track"><span className="bar-fill" data-state={state} style={{ "--bar-width": `${(part.ratio ?? 0) * 100}%` } as CSSProperties}/></span><span className="bar-value">{number(n)}<span>{part.ratio === null && evaluated ? `de ${number(evaluated)}` : part.text}</span></span>{!compact && <span className="bar-detail">Qué conversar: {GUIDANCE[state]}{firstTime > 0 ? ` · ${plural(firstTime, "dicta", "dictan")} por primera vez en los datos (desde ${SINCE})` : ""}</span>}{compact && firstTime > 0 && <span className="bar-detail">{plural(firstTime, "dicta", "dictan")} por primera vez en los datos (desde {SINCE})</span>}</>;
+      const content = <><span className="bar-label"><span className="state-dot" data-state={state}/><span>{state}{!compact && <small>{STATE_SHORT[state]}</small>}</span></span><span className="bar-track"><span className="bar-fill" data-state={state} style={{ "--bar-width": `${(part.ratio ?? 0) * 100}%` } as CSSProperties}/></span><span className="bar-value">{number(n)}<span>{part.ratio === null && evaluated ? `de ${number(evaluated)}` : part.text}</span></span>{!compact && <span className="bar-detail">Qué conversar: {GUIDANCE[state]}{firstTime > 0 ? ` · ${plural(firstTime, "dicta", "dictan")} por primera vez en los datos (desde ${SINCE})` : ""}{onSelect && <span className="bar-go" aria-hidden="true">Ver lista <Icon name="arrow" size={12}/></span>}</span>}{compact && firstTime > 0 && <span className="bar-detail">{plural(firstTime, "dicta", "dictan")} por primera vez en los datos (desde {SINCE})</span>}</>;
       const row = onSelect ? <button className="bar-row" key={state} data-state={state} onClick={() => onSelect(state)} aria-label={`${state}: ${number(n)} de ${number(evaluated)} profesores${part.ratio !== null ? ` (${part.text})` : ""}. Ver lista`}>{content}</button> : <div className="bar-row" key={state} data-state={state}>{content}</div>;
       return !compact && state === "Adopta" ? <div key={state} className="state-group-wrap">{subtotal("Ya la usan con estudiantes", ["Adopta", "Usa", "Apropia"])}{row}</div> : !compact && state === "No expuesto" ? <div key={state} className="state-group-wrap">{subtotal("No la usan ahora", ["No expuesto", "Abandona"])}{row}</div> : row;
     })}
