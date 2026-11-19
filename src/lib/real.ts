@@ -76,7 +76,8 @@ export function buildRealSource(input: unknown) {
   });
   // Next-group probabilities are positional (p0..p4), so the groups must come as C0..C4.
   if (grupos.some((group, k) => group.id !== `C${k}`)) fail("los grupos deben venir como C0, C1, ... en ese orden.");
-  const GROUPS: Group[] = grupos.map(group => ({ id: group.id, name: group.nombre, description: group.descripcion }));
+  // Who made the groups and «K5» are said once, in the Guide (groupsOrigin); each description keeps only what the group is.
+  const GROUPS: Group[] = grupos.map(group => ({ id: group.id, name: group.nombre, description: group.descripcion.replace(/^Perfil K5 de Lina: (.)/, (_, c: string) => c.toLocaleUpperCase("es")).replace("Es un grupo nominal: no es un nivel", "Grupo armado por el equipo del proyecto; es un nombre, no un nivel") }));
 
   aligned("profesores", [profesores.id, profesores.facultad, profesores.contrato]);
   unique(profesores.id, "profesores");

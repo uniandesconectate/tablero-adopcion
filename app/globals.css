@@ -932,8 +932,64 @@ tr[data-tied] { background: #fbf1d4; }
   .list-row > div { flex-basis: calc(100% - 34px); }
   .list-row > .button { margin-left: 34px; }
   .list-card-count { font-size: 34px; }
-  /* One line of steps: the other steps keep only their number; step 3 keeps its count. */
-  .steps-strip li:not([aria-current]) .step-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .steps-strip li { padding-right: 5px; }
-  .steps-strip li[aria-current] { padding-right: 11px; }
+}
+/* Flows, round 2: no focus frame on the page title, the quota asked where the list is chosen, lighter boxes and the table sooner. */
+/* The title takes the focus only to be announced; it is not a control, so no frame is drawn. */
+main h1:focus, main h1:focus-visible { outline: none; }
+.quota-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; font-weight: 550; color: var(--ink); }
+.quota-ask > span { min-width: 0; }
+@media (max-width: 760px) { .quota-ask { flex-wrap: nowrap; } }
+.quota-ask input { flex-shrink: 0; width: 104px; min-height: 40px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); font-weight: 450; }
+.page-description .quota-ask { margin-left: 6px; }
+.list-card-fit { display: block; margin-bottom: 3px; color: var(--ink); font-weight: 600; }
+.list-card-note .text-link { font-size: 12px; }
+.band-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 18px; }
+.band-head .quota-ask { color: #34502b; }
+.filters-toggle { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 16px; border: 0; border-radius: inherit; background: transparent; color: #3c5844; font-size: 13px; font-weight: 550; text-align: left; }
+.list-filters:not(.is-open) { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+.list-filters:not(.is-open) > .filters-grid { display: block; flex: 0 1 380px; padding-block: 8px; }
+.list-filters:not(.is-open) > .filters-grid > .field:not(.search-field), .list-filters:not(.is-open) > .panel-footer { display: none; }
+.list-filters:not(.is-open) .search-field > .field-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.list-filters.is-open > .filters-toggle { width: 100%; border-bottom: 1px solid var(--border-soft); border-radius: 0; }
+.selection-tray { background: var(--surface-raised); color: var(--ink); border-color: var(--border); box-shadow: 0 6px 22px #17231d1f; padding: 11px 18px; }
+.selection-tray > div:first-child > svg { color: var(--forest-soft); }
+.selection-tray > div > span, .selection-tray .tray-tool { color: var(--muted); }
+.selection-tray strong { font-weight: 600; }
+.selection-tray .button-primary { background: var(--amber); color: var(--forest); border-color: var(--amber); }
+.tool-heading { align-items: flex-start; }
+.tool-heading h2 { font-size: 24px; }
+.tool-heading-go { flex: 0 0 340px; }
+.tool-heading-go .button { margin-top: 0; }
+.tool-heading-go .steps-box { margin: 8px 0 0; font-size: 12px; }
+.tool-heading-go .steps-box summary { cursor: pointer; color: #3c5844; }
+.forecast-definition { max-width: 900px; margin: 0 0 14px; font-size: 13px; line-height: 1.6; color: var(--muted); }
+.forecast-definition strong { color: var(--ink); font-weight: 600; }
+.callout.trust { background: var(--surface-raised); border-color: var(--border); border-left: 4px solid var(--forest-soft); color: var(--ink); font-size: 12px; }
+.callout.trust > svg { color: var(--forest-soft); }
+.callout.trust strong { color: var(--ink); }
+.validation-verdict .text-link { margin-left: 4px; }
+@media (max-width: 760px) {
+  .tool-heading-go { flex-basis: auto; }
+  .tool-heading h2 { font-size: 23px; }
+  .list-filters:not(.is-open) > .filters-grid { flex-basis: 100%; padding: 0 16px 12px; }
+  .list-filters:not(.is-open) > .filters-toggle { width: 100%; }
+  .page-description .quota-ask { margin: 2px 0 0; }
+  .list-actions { display: flex; }
+  .list-actions .field { flex: 1; }
+}
+/* Phones: one line of steps with a short word each; the full name stays for screen readers. */
+.step-short { display: none; }
+@media (max-width: 760px) {
+  .steps-strip { gap: 6px 10px; margin-bottom: 12px; }
+  .steps-strip ol { flex-wrap: nowrap; gap: 4px; }
+  .steps-strip li { padding-right: 8px; }
+  .steps-strip .step-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .step-short { display: inline; }
+  .wide-only { display: none; }
+}
+/* Phones keep the whole filter panel, search included, behind its one-line button. */
+.phone-only { display: none; }
+@media (max-width: 760px) {
+  .phone-only { display: inline; }
+  .list-filters:not(.is-open) > .filters-grid { display: none; }
 }

@@ -141,3 +141,11 @@ test("domain rules hold on the v2 fixture (R1 to R11)", () => {
 test("the synthetic test data has the same names as an opened file, so setSource can load either", () => {
   for (const name of Object.keys(sintetico)) assert.ok(name in real, `un archivo abierto no trae ${name}`);
 });
+
+test("group descriptions say what the group is, without the method's jargon", () => {
+  for (const group of real.GROUPS) {
+    assert.doesNotMatch(group.description, /K5|Lina|nominal/, group.id);
+    assert.match(group.description, /^[A-ZÁÉÍÓÚÑ]/, `${group.id} starts with a capital`);
+    assert.match(group.description, /es un nombre, no un nivel/, group.id);
+  }
+});

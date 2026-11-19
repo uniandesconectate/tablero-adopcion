@@ -569,3 +569,24 @@ test("el aviso de empate se lee como una sola frase", async ({ page }) => {
   await expect(bold).toBeVisible();
   expect(await bold.evaluate(el => getComputedStyle(el).display)).toBe("inline");
 });
+
+test("el cupo se pregunta en el Resumen, cada lista dice si cabe y la lista lo conserva", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  // The title takes the focus to be announced, without a frame that looks like a selection.
+  const title = page.getByRole("heading", { level: 1, name: /^¿A quién invitar al taller de/ });
+  await expect(title).toBeFocused();
+  expect(await title.evaluate(el => getComputedStyle(el).outlineStyle)).toBe("none");
+  const first = page.getByRole("region", { name: "Para empezar a usarla" });
+  await expect(first).toContainText("Todos los que podrían ir.");
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("2");
+  await expect(first.locator(".list-card-fit")).toHaveText(/^Son más que el cupo de 2: toma a los primeros 2\.\s*$/);
+  await first.locator(".button-primary").click();
+  await expect(page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" })).toHaveValue("2");
+  await expect(page.getByLabel("Filas por página")).toHaveValue("2");
+});
+
+test("la barra de la convocatoria dice qué facultades faltan en la mezcla", async ({ page }) => {
+  await openFile(page, "/?vista=profesores&herramienta=rubricas");
+  for (const index of [0, 1]) await page.getByRole("checkbox", { name: `Seleccionar a ${await professorNameAt(page, index)}`, exact: true }).check();
+  await expect(page.locator(".selection-tray")).toContainText(/Mezcla de este taller: \d+ facultad(es)? de \d+(; faltan? [^·]+)? · \d+ grupos? de \d+/);
+});
