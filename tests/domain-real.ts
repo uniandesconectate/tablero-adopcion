@@ -124,7 +124,7 @@ test("R10: the CSV keeps the last taught state for whoever did not teach, and co
   assert.equal(note, "");
   assert.equal(quota, "");
   // Without the list it was marked from (a reload loses it), the criterion says so.
-  assert.match(cells(rows[0])[8], /^Elegido a mano en el tablero \(sin la lista: se marcó antes de recargar la página o de cambiar de archivo\)/);
+  assert.match(cells(rows[0])[8], /^Elegido en el tablero \(sin la lista: se marcó antes de recargar la página o de cambiar de archivo\)/);
   const [, talk2, chance2] = cells(rows[1]).slice(-6);
   assert.equal(talk2, "Rúbricas: Conversar sobre la interrupción | LockDown: sin sugerencia (de esta herramienta solo hay datos de configuración) | FeedbackFruits: sin sugerencia (de esta herramienta solo hay datos de configuración)", "configuration-only tools get no guidance, and the cell says so");
   assert.ok(chance2.includes("LockDown: solo hay pronóstico con datos de 2025-2"), "no forecast outside its origin, never 0");
@@ -132,11 +132,20 @@ test("R10: the CSV keeps the last taught state for whoever did not teach, and co
   // The list each person was marked from, the note and both dates travel too.
   const marked = exportSelectionCsv({ [p1]: ["debates"] }, "202520", { criteria: { [`${p1}:debates`]: "lista «No expuesto · 2025-2»" }, note: "desempate por facultad", date: new Date(2026, 10, 19), capacity: { debates: 25, rubricas: 9 }, total: 30 });
   const [row] = marked.slice(1).trim().split("\r\n").slice(1).map(cells);
-  assert.equal(row[8], "Elegido a mano en el tablero (Debates: lista «No expuesto · 2025-2»); falta confirmar con el profesor que el taller le sirve");
+  assert.equal(row[8], "Elegido en el tablero (Debates: lista «No expuesto · 2025-2»); falta confirmar con el profesor que el taller le sirve");
   assert.match(row[9], /datos generados el .+ · lista descargada el 2026-11-19$/);
   assert.equal(row.at(-2), "desempate por facultad");
   // The quota written in the dashboard travels too, only for this person's workshops.
   assert.equal(row.at(-1), "Debates: 25 | total de la convocatoria: 30");
+});
+
+test("one workshop downloads in the order of «Por taller»: highest probability first, the rest by code", () => {
+  const people = [p0, p1, p2, p3];
+  const rows = exportSelectionCsv(Object.fromEntries(people.map(id => [id, ["rubricas"]])), "202520").slice(1).trim().split("\r\n").slice(1);
+  const chance = (id: string) => { const at = PROFESSORS.find(p => p.id === id)!.periods.filter(p => p <= "202520").at(-1); return at ? getRecord(id, "rubricas", at).probability ?? -1 : -1; };
+  const expected = [...people].sort((a, b) => chance(b) - chance(a) || a.localeCompare(b));
+  assert.deepEqual(rows.map(row => row.split(";")[1]), expected.map(id => `"${id}"`));
+  assert.ok(people.some(id => chance(id) >= 0), "the fixture has someone with a probability");
 });
 
 test("R11: reach and shared classrooms reach the record", () => {

@@ -27,6 +27,11 @@ const groupsFirst = (here: boolean) => `Para calcular la probabilidad de configu
 
 const barStyle = (value: number): CSSProperties => ({ "--bar-width": `${Math.min(100, Math.max(0, value * 100))}%` } as CSSProperties);
 const facultyText = (faculty: string) => faculty === "Todos" ? "Todas las facultades" : facultyLong(faculty);
+/** How stable the groups are: who keeps the group of the previous taught semester in the semester shown. */
+export function groupStability(records: TeacherToolRecord[]) {
+  const both = records.filter(record => record.originGroup !== null && record.professor.groupByPeriod[record.period]);
+  return { withBoth: both.length, kept: both.filter(record => record.professor.groupByPeriod[record.period] === record.originGroup).length };
+}
 
 function PersonButton({ record, onProfessor }: { record: TeacherToolRecord; onProfessor: PageProps["onProfessor"] }) {
   return <button className="person-cell inline-link" onClick={() => onProfessor(record)}>
@@ -86,9 +91,7 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
     });
   };
   const target = configOnly ? `con ${tool.name} configurada` : `en ${activeState}`;
-  // How stable the groups are: who keeps the group of the previous taught semester in this one.
-  const withBoth = records.filter(record => record.originGroup !== null && record.professor.groupByPeriod[record.period]);
-  const kept = withBoth.filter(record => record.professor.groupByPeriod[record.period] === record.originGroup).length;
+  const { withBoth, kept } = groupStability(records);
   // «Semestre anterior» differs per person; the most common one makes it concrete.
   const previousOf = (record: TeacherToolRecord) => record.professor.periods.filter(p => p < record.period).at(-1);
   const previousCounts = records.reduce((m, r) => { const p = previousOf(r); return p ? m.set(p, (m.get(p) ?? 0) + 1) : m; }, new Map<PeriodId, number>());
@@ -105,10 +108,10 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Buscar por grupos parecidos (opcional)</h1><p className="page-tagline">Distintas formas de usar la plataforma.</p><p className="groups-plain">Los grupos describen qué combinación de herramientas configura cada profesor: {GROUPS[0]?.id} a {GROUPS.at(-1)?.id} son nombres, no niveles, notas ni un orden de calidad.</p>
-        <p className="muted"><strong>Otra forma de buscar para el taller de {tool.name}: compara grupos de profesores que configuran parecido.</strong> Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (empieza en No expuesto, el de la lista del taller)`} y abrir esa lista. Cada profesor cuenta en el grupo de su semestre anterior: el último que dictó antes de {period}{usualPrevious ? ` (para la mayoría, ${formatPeriod(usualPrevious)})` : ""}.</p>
-        {withBoth.length > 0 && <p className="stability"><strong>¿Qué tan estables son?</strong> De {plural(withBoth.length, "profesor", "profesores")} con grupo en su semestre anterior y en {period}, {number(kept)} ({pct(kept, withBoth.length)}) siguen en el mismo grupo; los demás cambiaron de un semestre al siguiente.</p>}
-        <details className="muted small group-how"><summary>Cómo se armaron los grupos</summary><p>Cada semestre que dicta (desde {SINCE}), un método que arma 5 grupos («K5») le asigna a cada profesor un grupo según lo que configuró ese semestre en {builtFrom.map(t => t.name).join(", ").replace(/, ([^,]*)$/, " y $1")}: qué parte de sus aulas tiene cada una y cuántos elementos pone por aula. Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes.</p><p>{groupsFirst(true)}</p></details></div>
+      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Buscar por grupos parecidos (opcional)</h1><p className="page-tagline">Distintas formas de usar la plataforma.</p><p className="groups-plain">{GROUPS.length} tipos de profesor según qué combinación de herramientas configura: {GROUPS[0]?.id} a {GROUPS.at(-1)?.id} son nombres, no niveles, notas ni un orden de calidad. El pronóstico también los usa para calcular la probabilidad.</p>
+        {withBoth > 0 && <p className="stability"><span className="stability-figure">{pct(kept, withBoth)}</span><span><strong>¿Qué tan estables son?</strong> De {plural(withBoth, "profesor", "profesores")} con grupo en su semestre anterior y en {period}, {number(kept)} ({pct(kept, withBoth)}) siguen en el mismo grupo; los demás cambiaron de un semestre al siguiente.</span></p>}
+        <p className="groups-when">Úsala si quieres invitar por tipo de profesor: toca un grupo abajo para ver a quiénes tiene {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name}`} y abrir esa lista.</p>
+        <details className="muted small group-how"><summary>Cómo funciona esta página y cómo se armaron los grupos</summary><p><strong>Otra forma de buscar para el taller de {tool.name}: compara grupos de profesores que configuran parecido.</strong> Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (empieza en No expuesto, el de la lista del taller)`} y abrir esa lista. Cada profesor cuenta en el grupo de su semestre anterior: el último que dictó antes de {period}{usualPrevious ? ` (para la mayoría, ${formatPeriod(usualPrevious)})` : ""}. Se usa el anterior porque el grupo de un semestre se arma con lo que configuró ese mismo semestre{TEXTS.forecastOrigin ? `; «Pronóstico», en cambio, usa el de ${formatPeriod(TEXTS.forecastOrigin)}, el semestre del que parte` : ""}.</p><p>Cada semestre que dicta (desde {SINCE}), un método de agrupación le asigna a cada profesor uno de 5 grupos según lo que configuró ese semestre en {builtFrom.map(t => t.name).join(", ").replace(/, ([^,]*)$/, " y $1")}: qué parte de sus aulas tiene cada una y cuántos elementos pone por aula. Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes.</p><p>{groupsFirst(true)}</p><details><summary>Ver detalle técnico</summary><p>El método arma 5 grupos; por eso se llama «K5».</p></details></details></div>
       <button className="button button-ghost" onClick={() => onMethod("grupos")}><Icon name="info"/>Guía: los grupos</button>
     </div>
 
@@ -206,10 +209,19 @@ const inWords = (reduction: number) => reduction < 0 ? "peor que la regla simple
 const per100 = (band: { observed: number; count: number }) => Math.round(band.observed / band.count * 100);
 // The simple rule gives everyone the same probability, so it cannot order anyone; said with the figure so «5 % menos error» is not read as almost nothing.
 /** «Ordena bien» over the whole review of a tool, said once for the Resumen and «Pronóstico»; "" with fewer than 2 fifths. */
-export function orderSentence(toolId: string) {
+export function orderFigures(toolId: string) {
   const rows = VALIDATION_ROWS.filter(row => row.toolId === toolId);
   const parts = fifths(rows);
-  return parts.length > 1 ? `de la quinta parte con probabilidad más alta, la configuraron ${number(per100(parts.at(-1)!))} de cada 100; en todos los casos, ${number(Math.round(rows.filter(row => row.outcome).length / rows.length * 100))}; en la quinta parte más baja, ${number(per100(parts[0]))}.` : "";
+  if (parts.length < 2) return null;
+  const positives = rows.filter(row => row.outcome).length;
+  const top = per100(parts.at(-1)!);
+  const average = Math.round(positives / rows.length * 100);
+  return { top, average, low: per100(parts[0]), range: parts.at(-1)!.label.replace(" – ", " a "), positives, cases: rows.length, use: top > average ? "Sirve para ordenar a quién mirar primero, no para saber quién la configurará." : "Aquí no ordena mejor que lo simple: úsalo solo para explorar." };
+}
+// The top fifth names its range, so it is not read as the «probabilidad alta» cut, which can give a similar figure.
+export function orderSentence(toolId: string) {
+  const f = orderFigures(toolId);
+  return f ? `de la quinta parte con probabilidad más alta (de ${f.range}), la configuraron ${number(f.top)} de cada 100; en promedio, ${number(f.average)} (${number(f.positives)} de ${number(f.cases)}); en la quinta parte más baja, ${number(f.low)}.` : "";
 }
 const ruleText = "una regla que le da a todos la misma probabilidad (la parte de profesores que la configuró antes)";
 
@@ -285,10 +297,10 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
   const allRule = againstRule(toolValidation, availablePeriods).filter(row => row.reduction !== null).at(-1);
   const highTrack = bandTrackRecord(filters.tool, "Alta");
   const allPercent = (n: number) => pct(n, toolValidation.length);
-  const finalTest = TEXTS.cleanTest ? ` La prueba definitiva será comparar con lo que pasó en ${formatPeriod(TEXTS.cleanTest)}: esos datos se guardan aparte y no vienen en este archivo (por eso el pronóstico puede ser para un semestre que ya terminó).` : "";
+  const finalTest = TEXTS.cleanTest ? ` La prueba definitiva será comparar con lo que pasó en ${formatPeriod(TEXTS.cleanTest)}: ese semestre ya terminó, pero sus datos se guardan aparte y no vienen en este archivo.` : "";
   const chosenNote = "A ciegas y, a la vez, con algo de ventaja: cada semestre revisado se comparó con una versión que no lo conocía, pero entre varias versiones se eligió la que mejor salió en esta revisión, así que puede verse algo mejor de lo que es.";
   const trust = allFifths.length > 1 && <section className="callout trust" aria-label="Por qué creerle"><Icon name="check"/><div>
-    <p><strong>¿Por qué creerle? Se probó a ciegas.</strong> Una versión del pronóstico que no conocía lo que pasó en {availablePeriods.map(formatPeriod).join(" ni en ")} se comparó con lo que de verdad pasó (detalle en «Cómo se calculó», abajo).</p>
+    <p><strong>¿Por qué creerle? Se probó a ciegas.</strong> {orderFigures(filters.tool)?.use} Una versión del pronóstico que no conocía lo que pasó en {availablePeriods.map(formatPeriod).join(" ni en ")} se comparó con lo que de verdad pasó (detalle en «Cómo se calculó», abajo).</p>
     <ul>
       <li>Ordena bien: {orderSentence(filters.tool)}</li>
       {trackSentence(filters.tool, "Alta") && <li>{trackSentence(filters.tool, "Alta")} Con ese corte se habría llegado a {number(highTrack.started)} de los {number(allPositives)} que la configuraron ({pct(highTrack.started, allPositives)}).{bandsAlike(filters.tool) && <> <strong>{bandsAlike(filters.tool)}</strong></>}</li>}
@@ -296,7 +308,7 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
     </ul>
     {(Math.abs(allMean - allRate) >= 0.01 || allRule) && <details className="trust-more"><summary>Ver más cifras de la revisión</summary><ul>
       {Math.abs(allMean - allRate) >= 0.01 && <li>En promedio se {allMean < allRate ? "quedó un poco corto" : "pasó un poco"}: dio {pct(allMean * 1000, 1000)} y la configuró el {allPercent(allPositives)}.</li>}
-      {allRule && <li>Frente a {ruleText}, en {formatPeriod(allRule.period)} acertó {inWords(allRule.reduction!).replace(" que la regla simple", "")} ({number(Math.round(Math.abs(allRule.reduction!) * 100))}&nbsp;% {allRule.reduction! >= 0 ? "menos" : "más"} error). Esa regla no ordena a nadie; el pronóstico sí, y para eso sirve en este tablero.</li>}
+      {allRule && <li>En {formatPeriod(allRule.period)} se equivocó {allRule.reduction! >= 0 ? "un poco menos" : "más"} ({number(Math.round(Math.abs(allRule.reduction!) * 100))}&nbsp;% {allRule.reduction! >= 0 ? "menos" : "más"} error) que {ruleText}: acertó {inWords(allRule.reduction!).replace(" que la regla simple", "")}. El error mide qué tan lejos quedó cada probabilidad de lo que pasó. Esa regla no ordena a nadie; el pronóstico sí, y para eso sirve en este tablero.</li>}
     </ul></details>}
     <button className="text-link" onClick={() => onTab("validation")}>Ver la revisión completa <Icon name="arrow" size={15}/></button>
   </div></section>;
@@ -337,9 +349,6 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
 
     {tab === "estimates" ? tool.forecast === false ? <section className="panel"><EmptyState title="Sin modelo para esta herramienta" description={`Para ${tool.name} no hay pronóstico de empezar a configurar.`}/></section> : offOrigin(filters.period) ? <section className="panel"><OffOrigin period={filters.period} onGo={period => onFilters({ period })}/></section> : <>
       <div className="forecast-definition"><p><strong>Probabilidad de que configure {tool.name} la próxima vez que dicte{TARGET ? ` (${formatPeriod(TARGET)})` : ""}, calculada con los datos de {formatPeriod(origin)}.</strong> Solo para quienes no la tenían configurada en {formatPeriod(origin)}; incluye a quienes la tuvieron antes y la dejaron. No predice los estados Adopta, Usa o Apropia ni el beneficio de un taller.</p></div>
-      {trust}
-      <details className="subgroup-note technical"><summary>Cómo se calculó y por qué la revisión es justa</summary><p>{groupsFirst(false)}</p>{targetNote && <p>{targetNote}</p>}<p>{TEXTS.modelPlain}{availablePeriods.length > 0 && ` La confianza que se muestra viene de revisarlo contra ${availablePeriods.map(formatPeriod).join(" y ")} (pestaña «¿Qué tan bien acierta?»).`}</p>{TEXTS.review && <p>{TEXTS.review}</p>}<details><summary>Ver detalle técnico</summary><p>{MODEL_TERMS}</p><p>{TEXTS.model}</p></details></details>
-
       <div className="toolbar">
         <label className="field" title={groupNote}>Grupo en {formatPeriod(origin)} (semestre del que parte el pronóstico)
           <select value={groupId} onChange={event => setGroupId(event.target.value as Filters["group"])}>
@@ -385,6 +394,9 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
           </table></div>
         </section>
       </div> : <section className="panel">{allConfigured ? <EmptyState title={`Todos ${groupId === "Todos" ? "aquí" : "los de este grupo"} ya tienen ${tool.name} configurada`} description={`El pronóstico es solo para quienes no la tenían configurada en ${formatPeriod(origin)}, así que aquí no hay a quién pronosticar.${groupId === "Todos" ? " Prueba otra herramienta o facultad." : " Prueba otro grupo."}`}/> : <EmptyState title="Nadie con probabilidad calculada" description={`En este contexto no hay profesores sin ${tool.name} configurada y con datos suficientes para el pronóstico. Prueba otra herramienta o facultad.`}/>}</section>}
+      {trust}
+      <details className="subgroup-note technical"><summary>Cómo se calculó y por qué la revisión es justa</summary><p>{groupsFirst(false)}</p>{targetNote && <p>{targetNote}</p>}<p>{TEXTS.modelPlain}{availablePeriods.length > 0 && ` La confianza que se muestra viene de revisarlo contra ${availablePeriods.map(formatPeriod).join(" y ")} (pestaña «¿Qué tan bien acierta?»).`}</p>{TEXTS.review && <p>{TEXTS.review}</p>}<details><summary>Ver detalle técnico</summary><p>{MODEL_TERMS}</p><p>{TEXTS.model}</p></details></details>
+
     </> : <>
       {filters.faculty !== "Todos" && <p className="faculty-warning"><strong>Estas cifras son de toda la universidad, no de {facultyLong(filters.faculty)}.</strong></p>}
       <div className="callout"><Icon name="info"/><p><strong>Revisión de {tool.name} con {TEXTS.badge.toLocaleLowerCase("es")} de todas las facultades y grupos.</strong> Aquí no se aplican los filtros de facultad ni de grupo. Se mide si la configuraron, no su estado.{TEXTS.cleanTest && ` ${chosenNote}${finalTest}`}</p></div>

@@ -833,8 +833,6 @@ tr[data-tied] { background: #fbf1d4; }
 /* Clarity round 5: reading order equals what is seen, one band before the list, groups with their semester, plain notices. */
 .mobile-menu .menu-word { display: none; }
 .bar-go { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; color: #3c5844; font-weight: 550; text-decoration: underline; text-decoration-color: #9ba993; text-underline-offset: 3px; }
-.workshop-band .band-decision { margin-top: 6px; }
-.workshop-band .band-decision strong { font-weight: 600; }
 .band-more { display: flex; flex-wrap: wrap; gap: 0 22px; }
 .band-more .steps-box { margin: 6px 0 0; }
 .band-more .steps-box[open] { flex-basis: 100%; }
@@ -993,3 +991,20 @@ main h1:focus, main h1:focus-visible { outline: none; }
   .phone-only { display: inline; }
   .list-filters:not(.is-open) > .filters-grid { display: none; }
 }
+/* Ronda 3: the reason to invite on the card, the backing in view, the order explained next to the list. */
+.list-card-compare { display: block; margin: 4px 0 2px; color: var(--ink); font-weight: 600; }
+.list-card-start { display: block; margin-top: 3px; color: var(--ink); font-weight: 600; }
+.backing { margin: 6px 0 18px; }
+.backing .summary-subtitle { margin-bottom: 10px; }
+.backing-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.backing-item { padding: 15px 18px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius); font-size: 12px; line-height: 1.6; color: var(--muted); }
+.backing-item p { margin: 0; }
+.backing-item strong { color: var(--ink); font-weight: 600; }
+.backing-figure { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px !important; font-size: 32px; line-height: 1.1; letter-spacing: -.05em; font-weight: 480; font-variant-numeric: tabular-nums; color: var(--ink); }
+.backing-figure span { font-size: 12px; letter-spacing: 0; line-height: 1.4; color: var(--muted); }
+.list-context .order-why { margin-top: 6px; font-size: 12px; color: var(--ink); max-width: 760px; }
+.list-context .order-why strong { font-weight: 600; }
+.stability { display: flex; align-items: baseline; gap: 12px; }
+.stability-figure { flex-shrink: 0; font-size: 30px; line-height: 1; letter-spacing: -.05em; font-weight: 480; color: var(--ink); }
+.groups-when { margin: 0 0 8px; font-size: 13px; color: var(--ink); }
+.state-bars .bar-row .bar-detail { font-size: 12px; }

@@ -211,7 +211,7 @@ test("en móvil se navegan las cinco vistas sin desbordamiento y Escape cierra l
   await openFile(page);
   const views = [
     ["Resumen", /^¿A quién invitar al taller de/],
-    ["Talleres y herramientas", /^.* por dentro: estados, cambios y pronóstico$/],
+    ["Talleres y herramientas", /^.* y su taller$/],
     ["Elegir profesores", /^Elige a quién invitar al taller de/],
     ["Grupos parecidos", /^Buscar por grupos parecidos/],
     ["Pronóstico", /^¿Quién podría configurar/],
@@ -404,7 +404,7 @@ test("marcar a toda la lista, el cupo por taller y el criterio viajan al archivo
   const csv = await readFile((await (await downloadPromise).path())!, "utf8");
   const [header, first] = csv.replace(/^﻿/, "").trim().split(/\r?\n/);
   expect(header).toContain('"Antecedente de la probabilidad";"Nota"');
-  expect(first).toContain("Elegido a mano en el tablero (Rúbricas: lista «Todos los estados · 2025-2»");
+  expect(first).toContain("Elegido en el tablero (Rúbricas: lista «Todos los estados · 2025-2»");
   expect(first).toMatch(/datos generados el .+ · lista descargada el \d{4}-\d{2}-\d{2}/);
   expect(first.endsWith(`"desempate por facultad";"Rúbricas: ${total - 2}"`)).toBe(true);
 });
@@ -521,8 +521,8 @@ test("al cambiar de página desde abajo, la nueva empieza arriba y en la lista c
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   // The list's group is the previous semester's, and the row says which one.
   await expect(page.locator("tbody .group-when").first()).toHaveText(/^\d{4}-[12]:$/);
-  // The decision before marking is one sentence in the workshop band, not a separate box.
-  await expect(page.locator(".workshop-band")).toContainText("Antes de marcar:");
+  // The decision before marking is one sentence next to the order it explains, not a separate box.
+  await expect(page.locator(".list-context .order-why")).toContainText("Antes de marcar:");
   await expect(page.locator(".callout.decision")).toHaveCount(0);
 });
 
@@ -556,7 +556,7 @@ test("la franja de pasos dice cuántos van marcados y su paso 3 abre la convocat
   await expect(steps.locator("li[aria-current=step]")).toHaveText(/Marca a quién invitar/);
   const name = await professorNameAt(page, 0);
   await page.getByRole("checkbox", { name: `Seleccionar a ${name}`, exact: true }).check();
-  await steps.getByRole("button", { name: /^Revisa y descarga\s*1 marcado$/ }).click();
+  await steps.getByRole("button", { name: /^Revisar convocatoria\s*1 marcado$/ }).click();
   await expect(page.getByRole("dialog", { name: "Tu próxima convocatoria" })).toBeVisible();
 });
 
@@ -588,5 +588,22 @@ test("el cupo se pregunta en el Resumen, cada lista dice si cabe y la lista lo c
 test("la barra de la convocatoria dice qué facultades faltan en la mezcla", async ({ page }) => {
   await openFile(page, "/?vista=profesores&herramienta=rubricas");
   for (const index of [0, 1]) await page.getByRole("checkbox", { name: `Seleccionar a ${await professorNameAt(page, index)}`, exact: true }).check();
-  await expect(page.locator(".selection-tray")).toContainText(/Mezcla de este taller: \d+ facultad(es)? de \d+(; faltan? [^·]+)? · \d+ grupos? de \d+/);
+  await expect(page.locator(".selection-tray")).toContainText(/Mezcla de este taller: \d+ facultad(es)? de \d+(; faltan? [^·]+)? · \d+ de los \d+ grupos \(en \d{4}-[12]\)/);
+});
+
+test("en el Resumen, lo que respalda las listas se ve con título propio y la tarjeta de probabilidad alta dice si cambia la convocatoria", async ({ page }) => {
+  await openFile(page, "/?herramienta=rubricas");
+  // The rule to choose sits on the first card, not in a paragraph below.
+  await expect(page.getByRole("region", { name: "Para empezar a usarla" }).locator(".list-card-start")).toHaveText("Si no sabes cuál elegir, empieza por esta.");
+  const backing = page.getByRole("region", { name: "Lo que respalda estas listas" });
+  await expect(backing).toContainText("¿Por qué creerle a la probabilidad?");
+  await expect(backing).toContainText(/en promedio, \d+ \([\d.]+ de [\d.]+\)/);
+  await expect(backing).toContainText("¿Qué son los grupos?");
+  // The long explanation of how the lists cross stays one tap away.
+  await expect(page.getByText(/^Cada opción abre una lista/)).toBeHidden();
+  await page.getByText("Ver más: cómo se cruzan las listas y cuál elegir", { exact: true }).click();
+  await expect(page.getByText(/^Cada opción abre una lista/)).toBeVisible();
+  const high = page.getByRole("region", { name: "Para concentrarte en quienes probablemente empiecen" });
+  await page.getByRole("spinbutton", { name: "Cupo del taller de Rúbricas" }).fill("2");
+  await expect(high.locator(".list-card-compare")).toHaveText(/entre los primeros 2 de la primera lista/);
 });

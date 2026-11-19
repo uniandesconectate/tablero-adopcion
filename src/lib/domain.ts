@@ -186,7 +186,7 @@ export function plainReason(record: TeacherToolRecord): string {
     "falta-dato": `Falta el dato de uso con estudiantes de ${period}, así que no tiene estado.`,
     historia: "Su historia tiene semestres sin dato o que no se pueden comparar; no tomamos la falta de dato como falta de uso.",
     inconsistente: "Los datos de configuración y de uso no coinciden.",
-    "no-expuesto": `Ninguno de sus estudiantes la ha usado ${known.length === 1 ? `en ${period}, el único semestre con datos que ha dictado desde ${since}` : `en los ${number(known.length)} semestres que dictó desde ${since}`}.${configuredBefore ? ` La tuvo configurada en ${plural(configuredBefore, "semestre", "semestres")}, sin actividad de estudiantes.` : ""}`,
+    "no-expuesto": `Ninguno de sus estudiantes la ha usado ${known.length === 1 ? `en ${period}, el único semestre con datos que ha dictado desde ${since}` : `en los ${number(known.length)} semestres que dictó desde ${since}`}.${configuredBefore ? ` La tuvo configurada en ${plural(configuredBefore, "semestre", "semestres")} desde ${since}, sin actividad de estudiantes.` : ""}`,
     adopta: `${period} es el primer semestre en que sus estudiantes la usan desde ${since}; aún no se sabe si seguirá.`,
     retomo: "Volvió a usarla después de dejarla. El tablero todavía no tiene un estado para quien la retoma.",
     apropia: `${runText} y en un semestre típico pone ${number(typical ?? 0)} ${TEXTS.unit}, más que el corte de Apropia (${cut}).`,
@@ -304,8 +304,11 @@ export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFA
   const next = TEXTS.cleanTest ? `en ${formatPeriod(TEXTS.cleanTest)}` : "el semestre siguiente";
   const header = ["Profesor (código seudónimo)", "Código", "Facultad", "Nombre de la facultad", "Herramientas", "Talleres", "Semestre consultado", "Estados por herramienta", "Criterio", "Fuente", "Por qué está en ese estado", "Qué conversar (sugerencia inicial)", `Probabilidad de configurarla ${next} (si vuelve a dictar, no mide si el taller le servirá)`, "Antecedente de la probabilidad", "Nota", "Cupo escrito en el tablero"];
   const downloaded = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  // Professors in code order and tools in their fixed order, as the call dialog lists them.
-  const rows = PROFESSORS.flatMap(professor => {
+  // One workshop: highest probability first, as «Por taller» lists it; several: code order. Tools in their fixed order.
+  const marked = [...new Set(Object.values(selection).flat())];
+  const chance = (professor: Professor) => { const at = lastTaughtPeriod(professor, period); const p = marked.length === 1 && at ? getRecord(professor.id, marked[0], at).probability : null; return p === null ? -1 : shown(p); };
+  const people = marked.length === 1 ? PROFESSORS.filter(p => selection[p.id]?.length).sort((a, b) => chance(b) - chance(a) || a.id.localeCompare(b.id)) : PROFESSORS;
+  const rows = people.flatMap(professor => {
     const tools = TOOLS.filter(tool => selection[professor.id]?.includes(tool.id));
     if (!tools.length) return [];
     const faculty = facultyAt(professor, period);
@@ -313,7 +316,7 @@ export function exportSelectionCsv(selection: Selection, period: PeriodId = DEFA
     const records = at ? tools.map(tool => getRecord(professor.id, tool.id, at)) : [];
     const perTool = (text: (record: TeacherToolRecord) => string) => at ? records.map(record => `${record.tool.name}: ${text(record)}`).join(" | ") : `no había dictado hasta ${formatPeriod(period)}`;
     const lists = tools.filter(tool => criteria[`${professor.id}:${tool.id}`]).map(tool => `${tool.name}: ${criteria[`${professor.id}:${tool.id}`]}`);
-    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), `Elegido a mano en el tablero${lists.length ? ` (${lists.join(" | ")})` : " (sin la lista: se marcó antes de recargar la página o de cambiar de archivo)"}; falta confirmar con el profesor que el taller le sirve`, `${TEXTS.csv} · lista descargada el ${downloaded}`,
+    return [[professor.name, professor.id, faculty, facultyName(faculty), tools.map(tool => tool.name).join(" | "), [...new Set(tools.map(tool => tool.workshop))].join(" | "), formatPeriod(period), tools.map(tool => `${tool.name}: ${selectionState(professor.id, tool.id, period)}`).join(" | "), `Elegido en el tablero${lists.length ? ` (${lists.join(" | ")})` : " (sin la lista: se marcó antes de recargar la página o de cambiar de archivo)"}; falta confirmar con el profesor que el taller le sirve`, `${TEXTS.csv} · lista descargada el ${downloaded}`,
       perTool(plainReason),
       // Configuration-only tools get no guidance (decision #13), and the cell says so instead of staying empty.
       perTool(record => record.tool.evidence === "configuracion" ? "sin sugerencia (de esta herramienta solo hay datos de configuración)" : GUIDANCE[record.state]),

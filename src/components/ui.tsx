@@ -57,7 +57,7 @@ onSource(() => {
   SINCE = formatPeriod(PERIODS[0]);
   TARGET = TEXTS.cleanTest;
   nextTerm = TARGET ? `en ${formatPeriod(TARGET)}` : "el semestre siguiente";
-  targetNote = TARGET ? `¿Por qué ${formatPeriod(TARGET)}? Este archivo llega hasta ${formatPeriod(PERIODS.at(-1)!)}, el semestre del que parte el pronóstico. Lo que pasó en ${formatPeriod(TARGET)} se guarda aparte para comprobar después, a ciegas, si el pronóstico acertó; por eso el pronóstico puede ser para un semestre que ya terminó.` : "";
+  targetNote = TARGET ? `¿Por qué ${formatPeriod(TARGET)}? Este archivo llega hasta ${formatPeriod(PERIODS.at(-1)!)}, el semestre del que parte el pronóstico. Lo que pasó en ${formatPeriod(TARGET)} se guarda aparte para comprobar después, a ciegas, si el pronóstico acertó: ${formatPeriod(TARGET)} ya terminó, pero sus datos no vienen en este archivo.` : "";
   STATE_SHORT = {
     Adopta: `la usa por primera vez desde ${SINCE}`,
     Usa: "la usa semestre tras semestre",
@@ -90,7 +90,9 @@ export function trackSentence(toolId: ToolId, band: ProbabilityBand): string {
   const { cases, started } = bandTrackRecord(toolId, band);
   if (!cases) return "";
   const periods = [...new Set(VALIDATION_ROWS.filter(row => row.toolId === toolId).map(row => formatPeriod(row.period)))].sort().join(" y ");
-  return `En la revisión de ${periods}, de ${plural(cases, "caso", "casos")} con probabilidad «${TEXTS.bands[band].toLocaleLowerCase("es")}», ${number(started)} la configuraron: ${per100(started, cases)} de cada 100.`;
+  // The cut is named with its range, so it is not read as the top fifth of «Ordena bien».
+  const range = TEXTS.relativeBands && habitualRate(toolId) !== null ? ` (${bandRange(toolId, band)})` : "";
+  return `En la revisión de ${periods}, de ${plural(cases, "caso", "casos")} con probabilidad «${TEXTS.bands[band].toLocaleLowerCase("es")}»${range}, ${number(started)} la configuraron: ${per100(started, cases)} de cada 100.`;
 }
 /** «unos 30», or «menos de 1», out of each 100. */
 const per100 = (n: number, total: number) => { const k = Math.round(n / total * 100); return k < 1 ? "menos de 1" : `unos ${number(k)}`; };
