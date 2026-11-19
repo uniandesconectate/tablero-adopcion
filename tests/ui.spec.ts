@@ -246,6 +246,7 @@ test("un archivo que no es tablero.json muestra un error claro y deja elegir otr
   await expect(alert).toBeFocused();
   await expect(alert.getByText(/^Detalle para el equipo de datos$/)).toBeVisible();
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from("esto no es JSON") }, alert.getByText(/tablero\.json»: su contenido no es el de un tablero\.json/));
+  await expect(alert).toContainText("Si ya elegiste ese y el mensaje sigue, pídele a ese equipo un archivo nuevo y envíale este mensaje");
   await choose(page, { name: "tablero.json", mimeType: "application/json", buffer: Buffer.from('{"contrato": "tabl') }, alert.getByText(/tablero\.json»: está cortado o dañado: parece que la descarga no terminó\./));
   // Each kind of problem has its own action: a cut download is downloaded again.
   await expect(alert).toContainText("Qué hacer: Descárgalo de nuevo y elige el archivo nuevo.");
@@ -344,6 +345,29 @@ test("en una lista sin probabilidad el orden es por código y lo dice", async ({
   // With one state chosen, «Qué conversar» is said once above the table.
   await expect(page.getByText("Qué conversar con quienes están en Usa:", { exact: true })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: /^Qué conversar/ })).toHaveCount(0);
+  // A search that finds someone outside the probability filter says that person exists and why there is no probability.
+  const code = await professorNameAt(page, 0);
+  await page.goto(`/?vista=profesores&herramienta=contenidos&probabilidad=Con+estimaci%C3%B3n&buscar=${code}`);
+  await choose(page, FIXTURE, changeFile(page));
+  await expect(page.getByRole("heading", { name: "Nadie aquí tiene ese rango de probabilidad", exact: true })).toBeVisible();
+  await expect(page.getByText(/^Con los otros filtros hay 1 profesor, pero no tiene probabilidad calculada\./)).toBeVisible();
+  await page.getByRole("button", { name: "Quitar el filtro de probabilidad", exact: true }).click();
+  await expect(page.getByRole("button", { name: `Ver ficha de ${code}`, exact: true })).toBeVisible();
+});
+
+test("con dos talleres hay cupo por taller y cupo total, y en el total cada persona cuenta una vez", async ({ page }) => {
+  await openFile(page, "/?vista=profesores&herramienta=rubricas");
+  const names = [await professorNameAt(page, 0), await professorNameAt(page, 1)];
+  for (const name of names) await page.getByRole("checkbox", { name: `Seleccionar a ${name}`, exact: true }).check();
+  await page.getByRole("combobox", { name: "Herramienta", exact: true }).selectOption("contenidos");
+  await page.getByLabel("Buscar profesor", { exact: true }).fill(names[0]);
+  await page.getByRole("checkbox", { name: `Seleccionar a ${names[0]}`, exact: true }).check();
+  await page.getByRole("banner").getByRole("button", { name: "Convocatoria (2)", exact: true }).click();
+  const selection = page.getByRole("dialog", { name: "Tu próxima convocatoria" });
+  await selection.getByRole("spinbutton", { name: "Cupo total (opcional)", exact: true }).fill("1");
+  await expect(selection.getByText("Cupo total (cada persona cuenta una vez): sobran 1 persona (2 marcadas, cupo de 1).", { exact: false })).toBeVisible();
+  await selection.getByRole("spinbutton", { name: "Cupo total (opcional)", exact: true }).fill("3");
+  await expect(selection.getByText("Cupo total (cada persona cuenta una vez): caben todos, 2 de 3 lugares; quedan 1 libre.", { exact: true })).toBeVisible();
 });
 
 test("marcar a toda la lista, el cupo por taller y el criterio viajan al archivo", async ({ page }) => {

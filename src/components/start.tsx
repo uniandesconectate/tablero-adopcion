@@ -19,7 +19,7 @@ function reason(error: unknown, text: string, name: string): [string, string, st
     if (!text.trim()) return ["está vacío.", AGAIN, ""];
     if (text.trimStart().startsWith("{")) return ["está cortado o dañado: parece que la descarga no terminó.", AGAIN, ""];
     // The call list this dashboard downloads is a .csv: the likeliest mix-up.
-    return [/\.csv$/i.test(name) ? "es una lista .csv, como la convocatoria que descarga este tablero, no un tablero.json." : "su contenido no es el de un tablero.json.", OTHER, ""];
+    return [/\.csv$/i.test(name) ? "es una lista .csv, como la convocatoria que descarga este tablero, no un tablero.json." : "su contenido no es el de un tablero.json.", `${OTHER} Si ya elegiste ese y el mensaje sigue, pídele a ese equipo un archivo nuevo y envíale este mensaje (botón «Copiar el mensaje»).`, ""];
   }
   if (!(error instanceof Error) || !error.message.startsWith(PREFIX)) return ["no tiene la estructura de tablero.json.", ASK, ""];
   const message = error.message.slice(PREFIX.length);

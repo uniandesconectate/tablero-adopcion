@@ -81,8 +81,8 @@ export function GroupsPage({ filters, onFilters, onNavigate, onProfessor, onMeth
 
   return <>
     <div className="page-heading">
-      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Otra forma de buscar para el taller de {tool.name}: por grupos parecidos</h1><p className="page-tagline">Opcional: compara grupos de profesores que configuran parecido.</p>
-        <p className="muted">Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (por ejemplo, en Adopta)`} y abrir esa lista. Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes. Cada profesor cuenta en el grupo que tenía en su semestre anterior: el último que dictó antes de {period}.</p></div>
+      <div><p className="eyebrow">04 / GRUPOS PARECIDOS</p><h1 tabIndex={-1}>Otra forma de buscar para el taller de {tool.name}: por grupos parecidos</h1><p className="page-tagline">Distintas formas de usar la plataforma.</p>
+        <p className="muted"><strong>Opcional: compara grupos de profesores que configuran parecido.</strong> Sirve para ver en qué tipo de profesor hay más personas {configOnly ? `con ${tool.name} configurada` : `en un estado de ${tool.name} (por ejemplo, en Adopta)`} y abrir esa lista. Compara el mismo estado de una herramienta entre grupos y revisa a sus integrantes. Cada profesor cuenta en el grupo que tenía en su semestre anterior: el último que dictó antes de {period}.</p></div>
       <button className="button button-ghost" onClick={() => onMethod("grupos")}><Icon name="info"/>Guía: los grupos</button>
     </div>
 
@@ -195,6 +195,8 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
   // Shown probabilities, in tenths of a percent, as the bands compare them.
   const predictedPositive = rows.filter(row => Math.round(shown(row.probability) * 1000) >= Math.round(threshold * 10));
   const truePositive = predictedPositive.filter(row => row.outcome).length;
+  // The same cut on the exact probability, kept as a second-level detail.
+  const exactPositive = rows.filter(row => row.probability >= threshold / 100);
   const meanProbability = rows.length ? rows.reduce((sum, row) => sum + row.probability, 0) / rows.length : 0;
   // Five groups with the same number of cases, from the lowest to the highest probability.
   const ascending = [...rows].sort((a, b) => a.probability - b.probability);
@@ -359,6 +361,7 @@ export function PredictionsPage({ filters, onFilters, onNavigate, onProfessor, o
                 <div className="metric-detail">{number(truePositive)} de {number(positives)}{positives === 0 ? " · No hubo inicios en estos casos." : ""}</div>
               </div>
               <p className="small muted">Con un corte de {thresholdText} se señalan {number(predictedPositive.length)} de {number(rows.length)} casos y {number(truePositive)} de ellos la configuraron. De los {number(positives)} que la configuraron, se habría llegado a {number(truePositive)}. Con un corte más bajo se llega a más personas, con más casos que no la configuraron.</p>
+              <details className="context-help"><summary>¿Y con la probabilidad exacta, sin redondear?</summary><p>Estas cifras comparan la probabilidad tal como se ve en las listas, redondeada (por ejemplo, 49,6&nbsp;% se ve como 50&nbsp;%), para que hablen de los mismos rangos. Con la probabilidad exacta, un corte de {thresholdText} señala {number(exactPositive.length)} de {number(rows.length)} casos y {number(exactPositive.filter(row => row.outcome).length)} de ellos la configuraron.</p></details>
             </div>
           </section>
         </div>
